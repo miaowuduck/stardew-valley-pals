@@ -1,0 +1,531 @@
+/* Register scale props as a number so windows build resolves scaleX properly */
+@property --scale-x {
+	syntax: "<number>";
+	inherits: true;
+	initial-value: 1;
+}
+
+@property --scale {
+	syntax: "<number>";
+	inherits: true;
+	initial-value: 1;
+}
+
+/* ------------- Overlay Mode Styles ------------- */
+
+/* Full-screen transparent overlay for overlay mode (overlay top to allow dragging) */
+.pet-overlay-container {
+	position: fixed;
+	top: var(--overlay-top, 0px);
+	left: 0;
+	width: 100vw;
+	height: calc(100vh - var(--overlay-top, 0px));
+	pointer-events: none;
+	z-index: 9999;
+	overflow: hidden;
+}
+
+/* Pets inside the overlay need to capture clicks */
+.pet-overlay-container .pet {
+	pointer-events: auto;
+}
+
+
+/* ------------- Pet View Styles ------------- */
+
+.pet-view-wrapper {
+	position: relative;
+	width: 100%;
+	height: 100%;
+	overflow: hidden; /* Allow for resizing */
+}
+
+/* Empty state when no pets are present */
+.pet-empty-state {
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -50%);
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 8px;
+	text-align: center;
+	z-index: 10;
+	pointer-events: auto;
+}
+
+.pet-empty-state-icon {
+	font-size: 2.5rem;
+	opacity: 0.6;
+	margin-bottom: 4px;
+}
+
+.pet-empty-state-title {
+	font-size: 1.1rem;
+	font-weight: 600;
+	color: var(--text-normal);
+}
+
+.pet-empty-state-desc {
+	font-size: 0.85rem;
+	color: var(--text-muted);
+	max-width: 260px;
+	line-height: 1.4;
+}
+
+.pet-empty-state-button {
+	margin-top: 8px;
+	padding: 6px 18px;
+	cursor: pointer;
+}
+
+.pet-view-background {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	image-rendering: pixelated;
+	image-rendering: crisp-edges;
+	z-index: 0;
+}
+
+.pet-view-background-tiled {
+	object-fit: unset;
+	background-repeat: repeat;
+	background-size: auto;
+}
+
+.pet-view-background-animation {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	z-index: 1;
+}
+
+/* Use css variables for most of the dynamically changing values, i.e. top, transition, etc. */
+.pet {
+	position: absolute;
+	width: var(--pet-width, var(--pet-size));
+	height: var(--pet-height, var(--pet-size));
+	left: var(--left);
+	top: var(--top);
+	transform: translate(-50%, -50%) scale(var(--scale, 1)) scaleX(var(--scale-x, 1));
+	background-repeat: no-repeat;
+	background-position: 0 0;
+	background-image: var(--sprite-url);
+	background-size: var(--sprite-size);
+	image-rendering: pixelated;
+	transition: left var(--move-duration, 300ms) linear, top var(--move-duration, 300ms) linear;
+	z-index: 100;
+}
+
+.pet-name-tooltip {
+	position: absolute;
+	bottom: 100%; 
+	left: 50%;
+	transform: translateX(-50%) translateY(-2px) scaleX(var(--scale-x, 1));
+	background: linear-gradient(180deg, #f7e6b7 0%, #e6c87d 100%);
+	color: #3d2d16;
+	padding: 4px 8px;
+	border: 2px solid #3d2d16;
+	border-radius: 0;
+	font-size: 0.8em;
+	white-space: nowrap;
+	pointer-events: none; 
+	opacity: 0;
+	transition: opacity 0.2s ease;
+	z-index: 1000;
+}
+
+.pet:hover .pet-name-tooltip {
+	opacity: 1;
+}
+
+.selector-button {
+	all: unset;
+	cursor: pointer;
+	display: block;
+	width: 100%;
+	padding: 1vh 0;
+	margin: 0.5vh 0;
+	border-radius: 8px;
+	transition: background-color 0.2s ease;
+	text-align: center;
+	line-height: normal;
+	font-size: 1.1em;
+	background-color: var(
+		--background-primary
+	) !important; /* !important to override the default style */
+	box-shadow: none !important;
+}
+
+.selector-button:hover {
+	background-color: var(--background-secondary-alt) !important;
+}
+
+.pet-setting-slider-value {
+	min-width: 4ch;
+	margin-left: 0.75rem;
+	text-align: right;
+	font-variant-numeric: tabular-nums;
+	color: var(--text-muted);
+	white-space: nowrap;
+}
+
+.pet-name-title {
+	margin-top: 0;
+	margin-bottom: 0.5rem;
+	line-height: 1.1;
+	font-size: 1.1em;
+}
+
+.pet-name-form {
+	display: flex;
+	flex-direction: column;
+	gap: 0.8rem;
+	align-items: flex-start;
+}
+
+.pet-name-input {
+	width: 100%;
+	flex: 1;
+	padding: 0.5em !important;
+}
+
+.pet-name-button {
+	transition: background-color 0.2s ease;
+}
+
+.ball {
+  position: absolute;
+  transform: translate(calc(var(--x, 0)), calc(var(--y, 0))) scale(var(--scale, 1)); /* same as above */
+  width: var(--ballwidth);
+  height: var(--ballheight);
+  z-index: 200;
+}
+.ball img {
+  display: block;
+  image-rendering: pixelated;
+  width: 100%;
+  height: 100%;
+}
+
+.pet-heart {
+	position: absolute;
+	width: 13px;
+	height: 12px;
+	left: var(--heart-random-x);
+	top: -10px; 
+	transform: translateX(-50%) scaleX(var(--scale-x, 1));
+	background-image: var(--heart-url);
+	background-size: cover;
+	image-rendering: pixelated;
+	opacity: 0;
+	pointer-events: none;
+	z-index: 1001;
+	animation: heart-float 1s ease-out forwards;
+}
+
+.pet-speech-bubble {
+	position: absolute;
+	left: 50%;
+	bottom: 100%;
+	transform: translateX(-50%) translateY(-8px) scaleX(var(--bubble-scale-x, 1));
+	transform-origin: bottom center;
+	display: block;
+	width: fit-content;
+	min-width: 140px;
+	max-width: min(420px, 80vw);
+	padding: 0.45rem 1.1rem;
+	border-radius: 8px 16px 8px 16px;
+	background: color-mix(in srgb, var(--background-primary) 92%, transparent);
+	color: var(--text-normal);
+	border: 1px solid var(--background-modifier-border);
+	box-shadow: 0 10px 22px color-mix(in srgb, black 18%, transparent);
+	font-size: 0.88rem;
+	line-height: 1.5;
+	white-space: normal;
+	word-break: normal;
+	overflow-wrap: anywhere;
+	line-break: loose;
+	pointer-events: none;
+	z-index: 1002;
+	animation: speech-pop 0.2s ease-out;
+}
+
+.pet-speech-bubble::after {
+	content: "";
+	position: absolute;
+	left: 50%;
+	bottom: -6px;
+	width: 12px;
+	height: 12px;
+	background: inherit;
+	border-left: 1px solid var(--background-modifier-border);
+	border-bottom: 1px solid var(--background-modifier-border);
+	transform: translateX(-50%) rotate(-45deg);
+}
+
+.pp-chat-modal-content {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	width: 100%;
+}
+
+.chat-message {
+	padding: 10px 20px;
+	border-radius: 6px;
+	max-width: 70%;
+	word-wrap: break-word;
+	white-space: pre-wrap;
+}
+
+.chat-message.bot {
+	background-color: var(--background-secondary);
+	color: var(--text-normal);
+	align-self: flex-start;
+}
+
+.chat-message.user {
+	background-color: var(--interactive-accent);
+	color: white;
+	align-self: flex-end;
+}
+
+@keyframes speech-pop {
+	from {
+		opacity: 0;
+		transform: translateX(-50%) translateY(-2px) scaleX(var(--bubble-scale-x, 1)) scale(0.94);
+	}
+	to {
+		opacity: 1;
+		transform: translateX(-50%) translateY(-8px) scaleX(var(--bubble-scale-x, 1)) scale(1);
+	}
+}
+
+@keyframes heart-float {
+	0% {
+		opacity: 1;
+		transform: translateX(-50%) scaleX(var(--scale-x, 1)) translateY(0) scale(0.5);
+	}
+	50% {
+		opacity: 1;
+		transform: translateX(-50%) scaleX(var(--scale-x, 1)) translateY(-15px) scale(1);
+	}
+	100% {
+		opacity: 0;
+		transform: translateX(-50%) scaleX(var(--scale-x, 1)) translateY(-30px) scale(0.8);
+	}
+}
+
+.cat-toy-hide-cursor {
+	cursor: none !important;
+}
+
+.cat-toy-cursor {
+	position: fixed;
+	left: var(--cursor-x);
+	top: var(--cursor-y);
+	width: var(--cat-toy-frame-size);
+	height: var(--cat-toy-frame-size);
+	transform: translate(var(--cat-toy-offset), var(--cat-toy-offset)) scale(var(--cat-toy-scale));
+	transform-origin: top left;
+	background-image: var(--cat-toy-url);
+	background-size: var(--cat-toy-sprite-width);
+	background-repeat: no-repeat;
+	background-position: 0 0;
+	image-rendering: pixelated;
+	pointer-events: none;
+	z-index: 99999;
+	animation: cat-toy-cursor var(--cat-toy-duration) steps(6) infinite;
+}
+
+@keyframes pet-sprite {
+	from { background-position: 0 0; }
+	to   { background-position: var(--sprite-total-width) 0; }
+}
+
+@keyframes cat-toy-cursor {
+	from { background-position: 0 0; }
+	to   { background-position: calc(-1 * var(--cat-toy-sprite-width)) 0; }
+}
+
+/* Chat Modal Styles */
+.modal:has(.pp-chat-modal-content) { /* Target this specific modal to change width + height */
+	width: 65vw !important;
+	height: 75vh !important;
+	max-width: none !important;
+}
+
+.pp-chat-modal-content {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	width: 100%;
+}
+
+.chat-messages {
+	flex: 1;
+	overflow-y: auto;
+	padding: 8px;
+	display: flex; 
+	flex-direction: column;
+	gap: 6px; 
+}
+
+.chat-message {
+	padding: 10px 20px;
+	border-radius: 6px;
+	max-width: 70%; 
+	word-wrap: break-word;
+	white-space: pre-wrap;
+}
+
+.chat-message.user {
+	background-color: var(--interactive-accent);
+	color: white;
+	align-self: flex-end; 
+}
+
+.chat-message.bot {
+	background-color: var(--background-secondary);
+	color: var(--text-normal);
+	align-self: flex-start; 
+}
+
+/* Reset margins and paddings for all elements inside bot messages (TIGHTER) */
+.chat-message.bot * {
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+.chat-message.bot ul,
+.chat-message.bot ol {
+    padding-left: 1.5em !important;
+    margin: -1em 0 !important; 
+}
+
+.chat-message.bot li {
+    margin: 0 !important;
+    padding: 0 !important;
+    line-height: 1.3 !important;
+}
+
+.chat-message.bot li > p {
+    display: inline !important; 
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+.chat-message.bot p {
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+.chat-message.bot li {
+    margin-top: 0 !important;
+}
+
+.chat-message.bot *:first-child {
+    margin-top: 0 !important;
+}
+
+.chat-message.bot *:last-child {
+    margin-bottom: 0 !important;
+}
+
+.chat-form {
+	display: flex;
+	align-items: flex-start;
+	width: 100%;
+	padding: 8px;
+	border-top: 1px solid var(--background-modifier-border);
+	gap: 6px;
+	box-sizing: border-box;
+}
+
+.chat-input {
+	flex: 1;
+	resize: none;
+	min-height: 20px; 
+	max-height: 120px;
+	padding: 6px;
+	line-height: 1.3;
+	overflow-y: auto;
+	height: auto;
+}
+
+.chat-send-button {
+	padding: 8px 12px;
+	white-space: nowrap;
+	align-self: flex-start;
+}
+
+.chat-message pre {
+	margin: 0;
+	padding: 0;
+	white-space: pre; 
+}
+
+.chat-message.bot {
+  font-family: var(--font-monospace); /* ALL bot messages are diff font */
+}
+
+
+/* Make Pet View action buttons always visible */
+.workspace-leaf:has(.pet-view-wrapper) {
+    display: flex !important;
+    flex-direction: column-reverse !important; 
+}
+
+.workspace-leaf:has(.pet-view-wrapper) .view-header {
+    display: flex !important;
+    min-height: 36px !important;
+    width: 100% !important;
+    order: 2 !important;
+}
+
+.workspace-leaf:has(.pet-view-wrapper) .view-content {
+    order: 1 !important;
+    flex: 1 !important;
+}
+
+.workspace-leaf:has(.pet-view-wrapper) .view-header-title {
+    display: flex !important;
+    order: -1 !important;
+    margin-right: auto !important;
+}
+
+.workspace-leaf:has(.pet-view-wrapper) .view-actions {
+    display: flex !important;
+    width: auto !important;
+    height: auto !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+}
+
+.workspace-leaf:has(.pet-view-wrapper) .view-action {
+    display: flex !important;
+    width: 32px !important;
+    height: 32px !important;
+    opacity: 1 !important;
+}
+
+.workspace-leaf:has(.pet-view-wrapper) .view-content {
+    padding: 8px !important;
+}
+
+/* Hide everything in the header except custom buttons */
+.workspace-leaf:has(.pet-view-wrapper) .view-header-nav-buttons,
+.workspace-leaf:has(.pet-view-wrapper) .view-header-icon,
+.workspace-leaf:has(.pet-view-wrapper) .view-action.mod-bookmark,
+.workspace-leaf:has(.pet-view-wrapper) .view-actions > .clickable-icon:last-child {
+    display: none !important;
+}
