@@ -4,7 +4,7 @@
 
 Bring the charming world of Stardew Valley into your Obsidian vault. Adopt pets, befriend NPCs, and let them keep you company while you work on your notes.
 
-![overview](assets\misc\image.png)
+![overview](assets/misc/image.png)
 
 ## About This Plugin
 
