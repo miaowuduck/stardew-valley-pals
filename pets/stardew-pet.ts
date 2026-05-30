@@ -208,7 +208,7 @@ export class StardewPet {
 		});
 
 		this.petEl.addEventListener("mouseleave", () => {
-			this.actionLoopPaused = false;
+			if (!this.speechBubbleEl) this.actionLoopPaused = false;
 		});
 
 		this.petEl.addEventListener("mousedown", (event) => {
@@ -285,7 +285,7 @@ export class StardewPet {
 			if (hasDragged) {
 				this.petEl.removeClass("pet-dragging");
 				this.petEl.setCssStyles({ transition: "" });
-				this.actionLoopPaused = false;
+				if (!this.speechBubbleEl) this.actionLoopPaused = false;
 			} else {
 				this.showHeart();
 			}
@@ -302,20 +302,132 @@ export class StardewPet {
 		activeWindow.setTimeout(() => heart.remove(), 1000);
 	}
 
+	// ── Speech bubble (positioned in container coords, not inside .pet) ──
+	// The pet stands still while speaking so the bubble doesn't drift away.
+
 	public showSpeechBubble(text: string, duration = 4500) {
 		if (this.isDestroyed || !this.petEl) return;
 		this.clearSpeechBubble();
-		const bubble = this.petEl.createDiv({ cls: "pet-speech-bubble" });
-		bubble.setCssProps({ "--bubble-scale-x": `${1 / this.direction}` });
+
+		// Freeze the pet in place so the bubble doesn't wander off.
+		this.actionLoopPaused = true;
+		void this.playAnimation("idle");
+
+		const bubble = activeDocument.createElement("div");
+		bubble.className = "pet-speech-bubble";
 		bubble.setText(text);
+		this.container.appendChild(bubble);
 		this.speechBubbleEl = bubble;
+
+		// Layout first, then position in container coordinates.
+		requestAnimationFrame(() => this.positionBubble(bubble));
+
 		this.speechBubbleTimeout = activeWindow.setTimeout(() => {
-			bubble.remove();
-			if (this.speechBubbleEl === bubble) {
-				this.speechBubbleEl = null;
-			}
-			this.speechBubbleTimeout = null;
+			this.clearSpeechBubble();
 		}, duration);
+	}
+
+	private positionBubble(bubble: HTMLElement) {
+		if (this.isDestroyed || !this.petEl) return;
+
+		const container = this.container as HTMLElement;
+		const cr = container.getBoundingClientRect();
+		const pr = this.petEl.getBoundingClientRect();
+		const br = bubble.getBoundingClientRect();
+		if (br.width === 0 || br.height === 0) return;
+
+		const GAP = 8;   // px between pet edge and bubble
+		const MARGIN = 8; // px clearance from container edges
+
+		// Pet geometry in container-local coordinates
+		const pcx = pr.left + pr.width / 2 - cr.left;  // pet centre X
+		const pcy = pr.top + pr.height / 2 - cr.top;   // pet centre Y
+		const pTop = pr.top - cr.top;
+		const pBottom = pr.bottom - cr.top;
+		const pLeft = pr.left - cr.left;
+		const pRight = pr.right - cr.left;
+
+		const bw = br.width;
+		const bh = br.height;
+		const cw = cr.width;
+		const ch = cr.height;
+
+		// Candidate sides — each describes where the bubble would go
+		type Side = "top" | "bottom" | "left" | "right";
+		interface Candidate {
+			side: Side;
+			space: number;          // available px in that direction
+			left: number;           // bubble.style.left
+			top: number;            // bubble.style.top
+			arrowX: number | null;  // arrow offset along bubble edge (px from left)
+			arrowY: number | null;  // arrow offset along bubble edge (px from top)
+		}
+
+		const candidates: Candidate[] = [
+			{
+				side: "top",
+				space: pTop - GAP,
+				left: pcx - bw / 2,
+				top: pTop - bh - GAP,
+				arrowX: bw / 2,
+				arrowY: null,
+			},
+			{
+				side: "bottom",
+				space: ch - pBottom - GAP,
+				left: pcx - bw / 2,
+				top: pBottom + GAP,
+				arrowX: bw / 2,
+				arrowY: null,
+			},
+			{
+				side: "left",
+				space: pLeft - GAP,
+				left: pLeft - bw - GAP,
+				top: pcy - bh / 2,
+				arrowX: null,
+				arrowY: bh / 2,
+			},
+			{
+				side: "right",
+				space: cw - pRight - GAP,
+				left: pRight + GAP,
+				top: pcy - bh / 2,
+				arrowX: null,
+				arrowY: bh / 2,
+			},
+		];
+
+		// Prefer the side that fits entirely; otherwise pick the one with
+		// the most room so clipping is minimised.
+		const neededW = bw + MARGIN;
+		const neededH = bh + MARGIN;
+		const fitting = candidates.filter(
+			(c) => c.side === "top" || c.side === "bottom"
+				? c.space >= neededH && c.left >= MARGIN && c.left + bw <= cw - MARGIN
+				: c.space >= neededW && c.top >= MARGIN && c.top + bh <= ch - MARGIN,
+		);
+		const pool = fitting.length > 0 ? fitting : candidates;
+		const best = pool.reduce((a, b) => (a.space > b.space ? a : b));
+
+		// Clamp into container
+		const left = Math.max(MARGIN, Math.min(cw - bw - MARGIN, best.left));
+		const top = Math.max(MARGIN, Math.min(ch - bh - MARGIN, best.top));
+
+		// Recalculate arrow so it always points at the pet centre,
+		// even after the bubble was clamped.
+		bubble.style.left = `${left}px`;
+		bubble.style.top = `${top}px`;
+		bubble.className = `pet-speech-bubble pet-speech-bubble--${best.side}`;
+
+		const arrowX = pcx - left; // px from bubble's left edge
+		const arrowY = pcy - top;  // px from bubble's top edge
+
+		if (best.side === "top" || best.side === "bottom") {
+			bubble.style.setProperty("--sb-arrow-x", `${Math.max(8, Math.min(bw - 8, arrowX))}px`);
+		} else {
+			bubble.style.setProperty("--sb-arrow-y", `${Math.max(8, Math.min(bh - 8, arrowY))}px`);
+		}
 	}
 
 	public clearSpeechBubble() {
@@ -327,6 +439,8 @@ export class StardewPet {
 			activeWindow.clearTimeout(this.speechBubbleTimeout);
 			this.speechBubbleTimeout = null;
 		}
+		// Resume wandering now that the bubble is gone.
+		this.actionLoopPaused = false;
 	}
 
 	public async clampToContainer() {

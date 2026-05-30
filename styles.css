@@ -215,12 +215,15 @@
 	animation: heart-float 1s ease-out forwards;
 }
 
+/* ── Speech bubble ──────────────────────────────────────────
+   Positioned directly in the pet container (not inside .pet)
+   so the pet's CSS transforms don't affect placement.  Left /
+   top are set as inline px styles by JS.  A BEM modifier
+   class controls which edge the arrow sits on.
+   ─────────────────────────────────────────────────────────── */
+
 .pet-speech-bubble {
 	position: absolute;
-	left: 50%;
-	bottom: 100%;
-	transform: translateX(-50%) translateY(-8px) scaleX(var(--bubble-scale-x, 1));
-	transform-origin: bottom center;
 	display: block;
 	width: fit-content;
 	min-width: 140px;
@@ -242,28 +245,53 @@
 	animation: speech-pop 0.2s ease-out;
 }
 
+/* Arrow — shared */
 .pet-speech-bubble::after {
 	content: "";
 	position: absolute;
-	left: 50%;
-	bottom: -6px;
-	width: 12px;
-	height: 12px;
+	width: 10px;
+	height: 10px;
 	background: inherit;
-	border-left: 1px solid var(--background-modifier-border);
-	border-bottom: 1px solid var(--background-modifier-border);
-	transform: translateX(-50%) rotate(-45deg);
+	border: 1px solid var(--background-modifier-border);
+	border-top: none;
+	border-right: none;
+}
+
+/* Bubble ABOVE the pet — arrow at bottom edge, pointing down */
+.pet-speech-bubble--top::after {
+	left: var(--sb-arrow-x, 50%);
+	bottom: -6px;
+	margin-left: -5px;
+	transform: rotate(-45deg);
+}
+
+/* Bubble BELOW the pet — arrow at top edge, pointing up */
+.pet-speech-bubble--bottom::after {
+	left: var(--sb-arrow-x, 50%);
+	top: -6px;
+	margin-left: -5px;
+	transform: rotate(135deg);
+}
+
+/* Bubble LEFT of the pet — arrow at right edge, pointing right */
+.pet-speech-bubble--left::after {
+	top: var(--sb-arrow-y, 50%);
+	right: -6px;
+	margin-top: -5px;
+	transform: rotate(45deg);
+}
+
+/* Bubble RIGHT of the pet — arrow at left edge, pointing left */
+.pet-speech-bubble--right::after {
+	top: var(--sb-arrow-y, 50%);
+	left: -6px;
+	margin-top: -5px;
+	transform: rotate(-135deg);
 }
 
 @keyframes speech-pop {
-	from {
-		opacity: 0;
-		transform: translateX(-50%) translateY(-2px) scaleX(var(--bubble-scale-x, 1)) scale(0.94);
-	}
-	to {
-		opacity: 1;
-		transform: translateX(-50%) translateY(-8px) scaleX(var(--bubble-scale-x, 1)) scale(1);
-	}
+	from { opacity: 0; scale: 0.94; }
+	to   { opacity: 1; scale: 1; }
 }
 
 @keyframes heart-float {
