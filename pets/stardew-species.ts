@@ -221,6 +221,7 @@ const speciesList: StardewSpeciesDefinition[] = [
 		id: "stardew/cow",
 		label: "Cow",
 		sprite: "cow",
+		frameSize: 32,
 		scale: 1,
 		moveDist: 16,
 		animations: {
@@ -259,27 +260,6 @@ const speciesList: StardewSpeciesDefinition[] = [
 			identity: "A cheerful pond duck",
 			temperament: "Quirky and curious—always splashing into the next thing",
 			rantStyle: "Quacks in fits and starts, darting from one thought to the next like ripples on a pond",
-		},
-	},
-	{
-		id: "stardew/rabbit",
-		label: "Rabbit",
-		sprite: "rabbit",
-		scale: 1,
-		moveDist: 30,
-		animations: {
-			idle: A([[0, 0]], 5, { loop: false }),
-			moveDown: A([[0, 0], [1, 0], [2, 0], [3, 0]], 5),
-			moveRight: A([[0, 1], [1, 1], [2, 1], [3, 1]], 5),
-			moveUp: A([[0, 2], [1, 2], [2, 2], [3, 2]], 5),
-			moveLeft: A([[0, 3], [1, 3], [2, 3], [3, 3]], 5),
-			special: A([[0, 6], [1, 6], [2, 6], [3, 6], [2, 6], [1, 6], [0, 6], [0, 0]], 5, { loop: false }),
-			sleep: A([[0, 4], [1, 4]], 4, { loop: false }),
-		},
-		persona: {
-			identity: "A skittish farm rabbit",
-			temperament: "Timid and alert—quick as a flash at the slightest sound",
-			rantStyle: "Speaks in soft, hurried whispers, twitching its nose between every word",
 		},
 	},
 	{
@@ -376,11 +356,6 @@ const npcList: StardewSpeciesDefinition[] = [
 		temperament: "Quiet and reserved—his hands speak louder than he ever does",
 		rantStyle: "Mutters to himself at the anvil, blunt and to the point, with the warmth of hot iron",
 	}),
-	N("Dana", {
-		identity: "A young woman with the gentle soul of a future teacher",
-		temperament: "Quiet, patient, and happiest with a book in her hands",
-		rantStyle: "Speaks softly, like she's reading aloud from a well-worn journal, wistful and kind",
-	}),
 	N("Demetrius", {
 		identity: "A scientist living in the mountain cabin",
 		temperament: "Logical and precise—he'd analyze a friendship like a lab experiment",
@@ -391,11 +366,11 @@ const npcList: StardewSpeciesDefinition[] = [
 		temperament: "Jovial and optimistic—he's got a sea story for every occasion",
 		rantStyle: "Talks like he's leaning against the dock railing, voice rough but welcoming as the tide",
 	}),
-	N("Dwarf", {
+	{ ...N("Dwarf", {
 		identity: "A mysterious little creature from deep within the mines",
 		temperament: "Wary and secretive, yet endlessly curious about the surface world above",
 		rantStyle: "Speaks like something that crawled out of the earth—strange phrasing, older than dust",
-	}),
+	}), frameHeight: 24 },
 	N("Elliott", {
 		identity: "A romantic writer living in a shack on the beach",
 		temperament: "Elegant and passionate—every day is a page in his novel",
@@ -446,11 +421,11 @@ const npcList: StardewSpeciesDefinition[] = [
 		temperament: "Quiet and withdrawn—he's still finding his footing back in civilian life",
 		rantStyle: "Watches from the corner of the room, speaking only when it counts, every word heavy with weight",
 	}),
-	N("Krobus", {
+	{ ...N("Krobus", {
 		identity: "A shy shadow creature who calls the sewers home",
 		temperament: "Timid and gentle—the darkness hides the kindest heart in the valley",
 		rantStyle: "Speaks like a creature peeking out from a grate, quiet and careful, curious about human ways",
-	}),
+	}), frameHeight: 24 },
 	N("Leah", {
 		identity: "A sculptor who lives in a cozy cabin in Cindersap Forest",
 		temperament: "Independent and down-to-earth—she finds beauty in wood grain and wildflowers",
@@ -566,27 +541,39 @@ const npcList: StardewSpeciesDefinition[] = [
 		temperament: "Mysterious and brooding—he has little patience for mundane matters",
 		rantStyle: "Intones like he's reading the stars from his tower, deep and arcane, with secrets in every syllable",
 	}),
-	N("femaleRival", {
-		identity: "An independent adventurer from the next valley over",
-		temperament: "Fiercely competitive and self-assured—she never backs down from a challenge",
-		rantStyle: "Talks like a rival sizing you up on the fairgrounds, sharp and teasing, daring you to keep up",
-	}),
-	N("maleRival", {
-		identity: "A strong-willed competitor who came all the way from Zuzu City",
-		temperament: "Blunt and competitive, but he plays fair and stands by his principles",
-		rantStyle: "Speaks like an opponent on the farm circuit, direct and gruff, but with a grudging respect",
-	}),
 ];
 
 const speciesById = new Map(
 	[...speciesList, ...npcList].map((species) => [species.id, species])
 );
 
-export const STARDEW_SPECIES_OPTIONS: SelectorOption[] = [...speciesList, ...npcList].map((species) => ({
-	value: species.id,
-	label: species.label,
-	requiresName: true,
-}));
+export const STARDEW_SPECIES_OPTIONS: SelectorOption[] = [...speciesList, ...npcList].map((species) => {
+	const moveAnim = toAnimation(species.animations.moveRight) ?? toAnimation(species.animations.moveDown);
+	const fw = species.frameWidth || species.frameSize || 16;
+	const fh = species.frameHeight || species.frameSize || 16;
+	const spriteUrl = isNpcSpeciesType(species.id)
+		? getStardewNpcAsset(species.sprite)
+		: getStardewPetAsset(species.sprite as StardewPetSpriteKey);
+	return {
+		value: species.id,
+		label: species.label,
+		requiresName: true,
+		spriteData: moveAnim ? {
+			url: spriteUrl,
+			scale: species.scale,
+			frameWidth: fw,
+			frameHeight: fh,
+			variantOffset: species.variantOffset,
+			moveFrames: moveAnim.frames,
+			fps: moveAnim.fps,
+		} : undefined,
+	};
+});
+
+function toAnimation(animation: StardewAnimation | StardewAnimation[] | undefined): StardewAnimation | undefined {
+	if (!animation) return undefined;
+	return Array.isArray(animation) ? animation[0] : animation;
+}
 
 export function getStardewSpeciesDefinition(type: string): StardewSpeciesDefinition | undefined {
 	return speciesById.get(type);

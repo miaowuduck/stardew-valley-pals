@@ -5,8 +5,9 @@ import type { SelectorOption } from "../core/types";
 export type { SelectorOption };
 
 export class SelectorModal extends Modal {
-	options: SelectorOption[]; // Array of options
-	onSubmit: (value: string, name: string) => Promise<void>; // Expects a function that takes a value and name and returns a promise (callback to chooser function)
+	options: SelectorOption[];
+	onSubmit: (value: string, name: string) => Promise<void>;
+	private animationTimers: ReturnType<typeof activeWindow.setInterval>[] = [];
 
 	constructor(
 		app: App,
@@ -19,46 +20,134 @@ export class SelectorModal extends Modal {
 		this.modalEl.addClass("pet-settings-modal");
 	}
 
-	// Show modal options on open
 	onOpen() {
 		const { contentEl } = this;
+		const hasSprites = this.options.some((o) => o.spriteData);
 
+		if (hasSprites) {
+			this.renderGrid(contentEl);
+		} else {
+			this.renderButtons(contentEl);
+		}
+	}
+
+	// ── Grid rendering (when options have spriteData) ──────────
+
+	private renderGrid(container: HTMLElement) {
+		const grid = container.createDiv({ cls: "pet-selector-grid" });
+
+		// Find where NPCs start to insert a divider
+		const firstNpcIndex = this.options.findIndex((o) =>
+			o.value.startsWith("stardew/npc/")
+		);
+
+		for (let i = 0; i < this.options.length; i++) {
+			const option = this.options[i];
+
+			// Section divider between pets and NPCs
+			if (i === firstNpcIndex && firstNpcIndex > 0) {
+				grid.createDiv({ cls: "pet-selector-divider" });
+			}
+
+			const card = grid.createDiv({ cls: "pet-selector-card" });
+
+			card.addEventListener("click", () => {
+				if (option.requiresName) {
+					this.showNameForm(option.value);
+				} else {
+					void (async () => {
+						await this.onSubmit(option.value, "");
+						this.close();
+					})();
+				}
+			});
+
+			if (option.spriteData) {
+				const sd = option.spriteData;
+				const spriteEl = card.createDiv({ cls: "pet-selector-sprite" });
+
+				// Load sprite sheet image to get natural dimensions
+				const img = new Image();
+				img.src = sd.url;
+				img.onload = () => {
+					const naturalW = img.naturalWidth;
+					const naturalH = img.naturalHeight;
+
+					spriteEl.setCssStyles({
+						backgroundImage: `url('${sd.url}')`,
+						backgroundRepeat: "no-repeat",
+						imageRendering: "pixelated",
+						backgroundSize: `${naturalW * sd.scale}px ${naturalH * sd.scale}px`,
+						width: `${sd.frameWidth * sd.scale}px`,
+						height: `${sd.frameHeight * sd.scale}px`,
+					});
+
+					// Apply first frame
+					const [fx0, fy0] = sd.moveFrames[0] ?? [0, 0];
+					const [ox, oy] = sd.variantOffset ?? [0, 0];
+					const px0 = -((fx0 + ox) * sd.frameWidth) * sd.scale;
+					const py0 = -((fy0 + oy) * sd.frameHeight) * sd.scale;
+					spriteEl.setCssStyles({ backgroundPosition: `${px0}px ${py0}px` });
+
+					// Start walking animation loop
+					let frameIndex = 0;
+					const interval = Math.max(16, Math.floor(1000 / sd.fps));
+					const timer = activeWindow.setInterval(() => {
+						frameIndex = (frameIndex + 1) % sd.moveFrames.length;
+						const [fx, fy] = sd.moveFrames[frameIndex];
+						const px = -((fx + ox) * sd.frameWidth) * sd.scale;
+						const py = -((fy + oy) * sd.frameHeight) * sd.scale;
+						spriteEl.setCssStyles({ backgroundPosition: `${px}px ${py}px` });
+					}, interval);
+					this.animationTimers.push(timer);
+				};
+
+				img.onerror = () => {
+					spriteEl.setText("?");
+				};
+			}
+
+		}
+	}
+
+	// ── Button rendering (fallback for options without sprites) ─
+
+	private renderButtons(container: HTMLElement) {
 		for (const option of this.options) {
-			// Make the button
-			const button = contentEl.createEl("button", {
+			const button = container.createEl("button", {
 				text: option.label,
 				cls: "selector-button",
 			});
 
-			// Call the chooser function when it is clicked
-			button.addEventListener("click", async () => {
+			button.addEventListener("click", () => {
 				if (option.requiresName) {
 					this.showNameForm(option.value);
 				} else {
-					// No name needed (background)
-					await this.onSubmit(option.value, "");
-					this.close();
+					void (async () => {
+						await this.onSubmit(option.value, "");
+						this.close();
+					})();
 				}
 			});
 		}
 	}
 
-	// Form to enter the pet's name
+	// ── Name form (shared between grid and button modes) ───────
+
 	private showNameForm(selectedValue: string) {
 		const { contentEl } = this;
 		contentEl.empty();
+		this.clearAnimationTimers();
 
 		const container = contentEl.createDiv({
 			cls: "pet-name-form-container",
 		});
 
-		// Title
 		container.createDiv({
 			text: "Enter a name:",
 			cls: "pet-name-title setting-item-heading",
 		});
 
-		// Input form
 		const form = container.createEl("form", {
 			cls: "pet-name-form",
 		});
@@ -69,7 +158,6 @@ export class SelectorModal extends Modal {
 		});
 		input.focus();
 
-		// Button to submit
 		form.createEl("button", {
 			type: "submit",
 			text: "Submit",
@@ -78,13 +166,11 @@ export class SelectorModal extends Modal {
 
 		form.addEventListener("submit", (e) => {
 			e.preventDefault();
-			// Prevent submitting blank name
 			const name = input.value.trim();
 			if (!name) {
 				return;
 			}
 
-			// Call function to use the selected type and pet name
 			void (async () => {
 				await this.onSubmit(selectedValue, name);
 				this.close();
@@ -92,8 +178,17 @@ export class SelectorModal extends Modal {
 		});
 	}
 
-	// Clean up DOM on modal close
+	// ── Cleanup ───────────────────────────────────────────────
+
+	private clearAnimationTimers() {
+		for (const timer of this.animationTimers) {
+			activeWindow.clearInterval(timer);
+		}
+		this.animationTimers = [];
+	}
+
 	onClose() {
+		this.clearAnimationTimers();
 		this.contentEl.empty();
 	}
 }

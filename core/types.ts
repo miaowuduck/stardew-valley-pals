@@ -33,6 +33,16 @@ export interface SelectorOption {
 	value: string;
 	label: string;
 	requiresName?: boolean;
+	/** When present the modal renders as an animated sprite grid instead of text buttons. */
+	spriteData?: {
+		url: string;
+		scale: number;
+		frameWidth: number;
+		frameHeight: number;
+		variantOffset?: [number, number];
+		moveFrames: StardewFrame[];
+		fps: number;
+	};
 }
 
 // ── Species / animation types ──────────────────────────────────
