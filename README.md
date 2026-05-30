@@ -1,31 +1,59 @@
-# stardew-valley-pals
+# 🐾 Stardew Valley Pals
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Obsidian](https://img.shields.io/badge/Obsidian-%23483699.svg?style=flat&logo=obsidian&logoColor=white)](https://obsidian.md)
 
-Bring the charming world of Stardew Valley into your Obsidian vault. Adopt pets, befriend NPCs, and let them keep you company while you work on your notes.
+Bring the charming world of **Stardew Valley** into your Obsidian vault. Adopt adorable pets, befriend iconic NPCs, and let them keep you company while you work on your notes — they'll even chat with you using AI-powered speech bubbles.
 
-![overview](assets/misc/image.png)
+---
 
-## About This Plugin
+## 📸 Demo
 
-This plugin is built on top of [obsidian-pets](https://github.com/hiden2000/obsidian-pets) by hiden2000, with animation logic adapted from [stardew-pet-farm](https://github.com/PROF0UND/stardew-pet-farm) by PROF0UND. It extends the original with Stardew Valley characters, AI-powered speech bubbles, expanded NPC interactions, and a redesigned settings system.
+### Pets in Action
 
-## Features
+*① Pets wandering around, idling, and sleeping in your vault.*
 
-### Pets & NPCs
+<!-- ![](assets/demo/pets-demo.gif) -->
 
-- **10 pet species** with 55+ color variants: cats, dogs, chickens, cows, ducks, rabbits, dinosaurs, parrots, junimos, and turtles — each with idle, walk, special, and sleep animations
-- **35 Stardew Valley NPCs** including Abigail, Sebastian, Lewis, Robin, and more — each with their own walking animations and personality
-- All sprites use authentic Stardew Valley pixel art
+### NPCs
 
-### Display Modes
+*② Stardew Valley NPCs walking and interacting with your notes.*
 
-- **Panel mode**: Pets live in a resizable panel you can dock anywhere in your workspace
-- **Overlay mode**: Pets roam freely across your entire Obsidian window
-- Drag pets to reposition them, or let them wander on their own
-- Click a pet to show a heart, right-click to trigger an AI speech bubble
+<!-- ![](assets/demo/npcs-demo.gif) -->
 
-### AI-Powered Speech Bubbles
+### AI Speech Bubbles
+
+*③ Right-click a character to get a contextual comment about your current note.*
+
+<!-- ![](assets/demo/speech-bubble-demo.gif) -->
+
+### Overlay Mode
+
+*④ Pets roaming freely across your entire Obsidian window.*
+
+<!-- ![](assets/demo/overlay-demo.gif) -->
+
+---
+
+## ✨ Features
+
+### 🐱 Pets & 👥 NPCs
+
+| Category | Details |
+|---|---|
+| **Pets** | 15 pet species with 55+ color variants — cats, dogs, chickens, cows, ducks, rabbits, dinosaurs, parrots, junimos, turtles, goats, sheep, pigs, ostriches, and raccoons |
+| **NPCs** | 35+ Stardew Valley characters — Abigail, Sebastian, Lewis, Robin, Emily, Shane, and many more |
+| **Animations** | Each character has idle, walk, special, and sleep animation frames |
+| **Art Style** | All sprites use authentic Stardew Valley pixel art |
+
+### 🖥️ Display Modes
+
+- **Panel mode**: Pets live in a resizable side panel dockable anywhere in your workspace
+- **Overlay mode**: Pets roam freely across your entire Obsidian window as a transparent overlay
+- **Interaction**: Click a pet to see a heart ❤️, right-click to trigger an AI speech bubble
+- **Drag & Drop**: Reposition pets manually or let them wander on their own
+
+### 🤖 AI-Powered Speech Bubbles
 
 Pets and NPCs can comment on your notes using AI, with configurable persona-based responses:
 
@@ -35,9 +63,9 @@ Pets and NPCs can comment on your notes using AI, with configurable persona-base
 - Each species and NPC has a unique personality that shapes their dialogue
 - Optional Chinese-language prompt mode for all AI interactions
 
-### Backgrounds
+### 🌾 Backgrounds
 
-9 themed backgrounds inspired by Stardew Valley seasons and locations:
+10 themed backgrounds inspired by Stardew Valley seasons and locations:
 
 | Background | Style |
 |---|---|
@@ -52,32 +80,54 @@ Pets and NPCs can comment on your notes using AI, with configurable persona-base
 | Wood (Light) | Light planks (tiled) |
 | Wood (Orange) | Warm wood (tiled) |
 
-## Installation
+---
 
-### From Community Plugins (Recommended)
+## 📦 Installation
 
-1. Open Obsidian and go to **Settings > Community Plugins**
-2. Click **Browse** and search for **"Stardew Valley in Obsidian"**
-3. Click **Install**, then **Enable**
+### Method 1: Community Plugins (Recommended)
 
-### Manual Installation
+1. Open Obsidian and go to **Settings → Community Plugins**
+2. Ensure **Restricted Mode** is turned off
+3. Click **Browse** and search for **"Stardew Valley Pals"**
+4. Click **Install**, then **Enable**
+5. You're all set! Use the **"Add a pet"** command to get started
+
+### Method 2: BRAT (Beta Reviewer's Auto-update Tester)
+
+> BRAT lets you install plugins that are not yet in the community plugin store, and automatically checks for updates.
+
+1. Install the **BRAT** plugin from the Community Plugins store
+2. Open **Settings → BRAT → Beta Plugin List**
+3. Click **Add Beta Plugin**
+4. Enter the repository URL:
+   ```
+   https://github.com/miaowuduck/stardew-valley-pals
+   ```
+5. BRAT will install the plugin — go to **Settings → Community Plugins** and enable **Stardew Valley Pals**
+6. To update, run the **BRAT: Update all plugins and themes** command
+
+### Method 3: Manual Installation
 
 1. Download the latest release from the [Releases page](https://github.com/miaowuduck/stardew-valley-pals/releases)
 2. Extract the folder into your vault's `.obsidian/plugins/` directory
-3. In Obsidian, go to **Settings > Community Plugins** and click **Reload plugins**
-4. Enable **Stardew Valley in Obsidian**
+3. Restart Obsidian (or go to **Settings → Community Plugins** and click **Reload plugins**)
+4. Enable **Stardew Valley Pals**
 
-## Getting Started
+---
+
+## 🚀 Getting Started
 
 1. Enable the plugin — a welcome notice will guide you on first launch
-2. Use the **"Add a pet"** command (or click the `+` button in the pet panel) to choose a species and give it a name
-3. The pet panel will open automatically — your new friend will start wandering around
+2. Use the **"Add a pet"** command (or click the `+` button in the pet panel) to choose a species/NPC and give it a name
+3. The pet panel opens automatically — your new friend will start wandering around
 4. Use **"Choose pet view background"** to set the scene
 5. (Optional) Configure AI speech in **Settings** to let your pets talk
 
-Click the cat ribbon icon to toggle the pet view on and off.
+Click the 🐱 ribbon icon in the left sidebar to toggle the pet view on and off.
 
-## Commands
+---
+
+## ⌨️ Commands
 
 | Command | Description |
 |---|---|
@@ -86,7 +136,9 @@ Click the cat ribbon icon to toggle the pet view on and off.
 | `Remove all pets` | Clear all pets at once |
 | `Choose pet view background` | Change the background scene |
 
-## Settings
+---
+
+## ⚙️ Settings
 
 ### Display
 
@@ -126,7 +178,9 @@ Click the cat ribbon icon to toggle the pet view on and off.
 
 A **Reset to defaults** button is available at the bottom of the settings tab.
 
-## AI Setup
+---
+
+## 🔧 AI Setup
 
 To enable speech bubbles, configure an API provider in settings:
 
@@ -141,7 +195,9 @@ To enable speech bubbles, configure an API provider in settings:
 
 Pets will now comment in-character on your notes based on their species personality.
 
-## Credits
+---
+
+## 🙏 Credits
 
 ### Origin Projects
 - [stardew-pet-farm](https://github.com/PROF0UND/stardew-pet-farm) — Original Stardew Valley pet concept and sprites
@@ -153,10 +209,18 @@ All pet sprites, NPC character sprites, and background images are sourced from [
 ### Inspiration
 - [vscode-pets](https://marketplace.visualstudio.com/items?itemName=tonybaloney.vscode-pets) — The original VSCode pets extension
 
-## License
+---
+
+## 📄 License
 
 MIT — see [LICENSE](LICENSE) for details.
 
-## Feedback
+---
+
+## 💬 Feedback
 
 Found a bug or have a suggestion? Open an issue on [GitHub](https://github.com/miaowuduck/stardew-valley-pals/issues).
+
+---
+
+*Made with ❤️ for Stardew Valley fans and Obsidian users alike.*
