@@ -305,62 +305,40 @@ export class StardewPet {
 	}
 
 	// ── Speech bubble (positioned in container coords, not inside .pet) ──
-	// The pet stands still while speaking so the bubble doesn't drift away.
-	// We wait for any in-flight CSS transition to finish before measuring the
-	// pet's position, so the bubble always aligns with the final resting spot.
+	// When the pet is mid-step we force the CSS transition to complete
+	// instantly so the bubble always aligns with the pet's final position.
 
 	public showSpeechBubble(text: string, duration = 4500) {
 		if (this.isDestroyed || !this.petEl) return;
 		this.clearSpeechBubble();
 
-		// Freeze the pet — prevents the next step, but the *current* step's
-		// CSS transition may still be animating.
+		// Freeze the behaviour loop — no more steps will be scheduled.
 		this.actionLoopPaused = true;
 		void this.playAnimation("idle");
+
+		// Force any in-flight CSS transition to finish immediately by
+		// briefly disabling transitions, reading layout, then restoring.
+		this.petEl.setCssStyles({ transition: "none" });
+		void this.petEl.offsetHeight; // force synchronous layout flush
+		this.petEl.setCssStyles({ transition: "" });
 
 		const bubble = activeDocument.createElement("div");
 		bubble.className = "pet-speech-bubble";
 		bubble.setText(text);
-		bubble.style.opacity = "0"; // hidden until correctly positioned
+		bubble.style.visibility = "hidden"; // hidden until positioned
 		this.container.appendChild(bubble);
 		this.speechBubbleEl = bubble;
 
-		this.waitForPetToStop().then(() => {
+		// One rAF for the bubble's own layout, then position & show.
+		requestAnimationFrame(() => {
 			if (this.isDestroyed || this.speechBubbleEl !== bubble) return;
 			this.positionBubble(bubble);
-			bubble.style.opacity = "";
+			bubble.style.visibility = "";
 		});
 
 		this.speechBubbleTimeout = activeWindow.setTimeout(() => {
 			this.clearSpeechBubble();
 		}, duration);
-	}
-
-	/** Resolves when the pet element's CSS transition has finished (or
-	 *  immediately if no transition is in progress). */
-	private async waitForPetToStop(): Promise<void> {
-		const transition = getComputedStyle(this.petEl).transitionDuration;
-		const hasTransition = transition && transition !== "0s";
-
-		if (hasTransition) {
-			let settled = false;
-			const onEnd = () => { settled = true; };
-			this.petEl.addEventListener("transitionend", onEnd, { once: true });
-			// Safety timeout — resolve after 600 ms even if the event never fires.
-			await new Promise<void>((resolve) => {
-				activeWindow.setTimeout(() => {
-					this.petEl.removeEventListener("transitionend", onEnd);
-					resolve();
-				}, 600);
-			});
-			// If transitionend fired, give the browser one more rAF to flush layout.
-			if (settled) {
-				await new Promise((r) => requestAnimationFrame(r));
-			}
-		} else {
-			// Already idle — still wait one frame for the idle animation to land.
-			await new Promise((r) => requestAnimationFrame(r));
-		}
 	}
 
 	private positionBubble(bubble: HTMLElement) {
