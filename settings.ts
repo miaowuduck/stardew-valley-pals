@@ -119,8 +119,8 @@ export class PetSettingTab extends PluginSettingTab {
 				)
 			);
 
-		// ── AI Chat Configuration ────────────────────────────────
-		containerEl.createEl("h2", { text: "AI Chat Configuration" });
+		// ── AI Configuration ────────────────────────────────
+		containerEl.createEl("h2", { text: "AI Configuration" });
 
 		new Setting(containerEl)
 			.setName("OpenAI API key")
@@ -162,7 +162,7 @@ export class PetSettingTab extends PluginSettingTab {
 			});
 
 		new Setting(containerEl)
-			.setName("Chat model")
+			.setName("Model")
 			.setDesc("Model name for your provider (e.g. gpt-4o-mini, gemini-2.5-flash, deepseek-chat).")
 			.addText((text) => {
 				text.setValue(this.plugin.instanceData.selectedModel || "gpt-5-mini")
@@ -200,7 +200,7 @@ export class PetSettingTab extends PluginSettingTab {
 						return;
 					}
 					if (!model) {
-						new Notice("Please enter a chat model name.", 5000);
+						new Notice("Please enter a model name.", 5000);
 						return;
 					}
 

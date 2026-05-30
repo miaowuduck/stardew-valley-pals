@@ -578,14 +578,6 @@ export class StardewPet {
 		return false;
 	}
 
-	public startFollowingCursor(_getCursorX: () => number): void {
-		return;
-	}
-
-	public stopFollowingCursor(): void {
-		return;
-	}
-
 	public async destroy() {
 		if (this.isDestroyed) return;
 		this.isDestroyed = true;

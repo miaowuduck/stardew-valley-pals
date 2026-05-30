@@ -19,6 +19,7 @@ export class SelectorModal extends Modal {
 		super(app);
 		this.options = options;
 		this.onSubmit = onSubmit;
+		this.modalEl.addClass("pet-settings-modal");
 	}
 
 	// Show modal options on open

@@ -146,7 +146,7 @@
 	opacity: 1;
 }
 
-.selector-button {
+.pet-settings-modal .selector-button {
 	border: none;
 	background: none;
 	font: inherit;
@@ -161,14 +161,12 @@
 	text-align: center;
 	line-height: normal;
 	font-size: 1.1em;
-	background-color: var(
-		--background-primary
-	) !important; /* !important to override the default style */
-	box-shadow: none !important;
+	background-color: var(--background-primary);
+	box-shadow: none;
 }
 
-.selector-button:hover {
-	background-color: var(--background-secondary-alt) !important;
+.pet-settings-modal .selector-button:hover {
+	background-color: var(--background-secondary-alt);
 }
 
 .pet-setting-slider-value {
@@ -194,28 +192,14 @@
 	align-items: flex-start;
 }
 
-.pet-name-input {
+.pet-settings-modal .pet-name-input {
 	width: 100%;
 	flex: 1;
-	padding: 0.5em !important;
+	padding: 0.5em;
 }
 
 .pet-name-button {
 	transition: background-color 0.2s ease;
-}
-
-.ball {
-  position: absolute;
-  transform: translate(calc(var(--x, 0)), calc(var(--y, 0))) scale(var(--scale, 1)); /* same as above */
-  width: var(--ballwidth);
-  height: var(--ballheight);
-  z-index: 200;
-}
-.ball img {
-  display: block;
-  image-rendering: pixelated;
-  width: 100%;
-  height: 100%;
 }
 
 .pet-heart {
@@ -274,33 +258,6 @@
 	transform: translateX(-50%) rotate(-45deg);
 }
 
-.pp-chat-modal-content {
-	display: flex;
-	flex-direction: column;
-	height: 100%;
-	width: 100%;
-}
-
-.chat-message {
-	padding: 10px 20px;
-	border-radius: 6px;
-	max-width: 70%;
-	word-wrap: break-word;
-	white-space: pre-wrap;
-}
-
-.chat-message.bot {
-	background-color: var(--background-secondary);
-	color: var(--text-normal);
-	align-self: flex-start;
-}
-
-.chat-message.user {
-	background-color: var(--interactive-accent);
-	color: white;
-	align-self: flex-end;
-}
-
 @keyframes speech-pop {
 	from {
 		opacity: 0;
@@ -327,207 +284,7 @@
 	}
 }
 
-.cat-toy-hide-cursor {
-	cursor: none !important;
-}
-
-.cat-toy-cursor {
-	position: fixed;
-	left: var(--cursor-x);
-	top: var(--cursor-y);
-	width: var(--cat-toy-frame-size);
-	height: var(--cat-toy-frame-size);
-	transform: translate(var(--cat-toy-offset), var(--cat-toy-offset)) scale(var(--cat-toy-scale));
-	transform-origin: top left;
-	background-image: var(--cat-toy-url);
-	background-size: var(--cat-toy-sprite-width);
-	background-repeat: no-repeat;
-	background-position: 0 0;
-	image-rendering: pixelated;
-	pointer-events: none;
-	z-index: 99999;
-	animation: cat-toy-cursor var(--cat-toy-duration) steps(6) infinite;
-}
-
 @keyframes pet-sprite {
 	from { background-position: 0 0; }
 	to   { background-position: var(--sprite-total-width) 0; }
-}
-
-@keyframes cat-toy-cursor {
-	from { background-position: 0 0; }
-	to   { background-position: calc(-1 * var(--cat-toy-sprite-width)) 0; }
-}
-
-/* Chat Modal Styles */
-.modal:has(.pp-chat-modal-content) { /* Target this specific modal to change width + height */
-	width: 65vw !important;
-	height: 75vh !important;
-	max-width: none !important;
-}
-
-.pp-chat-modal-content {
-	display: flex;
-	flex-direction: column;
-	height: 100%;
-	width: 100%;
-}
-
-.chat-messages {
-	flex: 1;
-	overflow-y: auto;
-	padding: 8px;
-	display: flex; 
-	flex-direction: column;
-	gap: 6px; 
-}
-
-.chat-message {
-	padding: 10px 20px;
-	border-radius: 6px;
-	max-width: 70%; 
-	word-wrap: break-word;
-	white-space: pre-wrap;
-}
-
-.chat-message.user {
-	background-color: var(--interactive-accent);
-	color: white;
-	align-self: flex-end; 
-}
-
-.chat-message.bot {
-	background-color: var(--background-secondary);
-	color: var(--text-normal);
-	align-self: flex-start; 
-}
-
-/* Reset margins and paddings for all elements inside bot messages (TIGHTER) */
-.chat-message.bot * {
-    margin: 0 !important;
-    padding: 0 !important;
-}
-
-.chat-message.bot ul,
-.chat-message.bot ol {
-    padding-left: 1.5em !important;
-    margin: -1em 0 !important; 
-}
-
-.chat-message.bot li {
-    margin: 0 !important;
-    padding: 0 !important;
-    line-height: 1.3 !important;
-}
-
-.chat-message.bot li > p {
-    display: inline !important; 
-    margin: 0 !important;
-    padding: 0 !important;
-}
-
-.chat-message.bot p {
-    margin: 0 !important;
-    padding: 0 !important;
-}
-
-.chat-message.bot li {
-    margin-top: 0 !important;
-}
-
-.chat-message.bot *:first-child {
-    margin-top: 0 !important;
-}
-
-.chat-message.bot *:last-child {
-    margin-bottom: 0 !important;
-}
-
-.chat-form {
-	display: flex;
-	align-items: flex-start;
-	width: 100%;
-	padding: 8px;
-	border-top: 1px solid var(--background-modifier-border);
-	gap: 6px;
-	box-sizing: border-box;
-}
-
-.chat-input {
-	flex: 1;
-	resize: none;
-	min-height: 20px; 
-	max-height: 120px;
-	padding: 6px;
-	line-height: 1.3;
-	overflow-y: auto;
-	height: auto;
-}
-
-.chat-send-button {
-	padding: 8px 12px;
-	white-space: nowrap;
-	align-self: flex-start;
-}
-
-.chat-message pre {
-	margin: 0;
-	padding: 0;
-	white-space: pre; 
-}
-
-.chat-message.bot {
-  font-family: var(--font-monospace); /* ALL bot messages are diff font */
-}
-
-
-/* Make Pet View action buttons always visible */
-.workspace-leaf:has(.pet-view-wrapper) {
-    display: flex !important;
-    flex-direction: column-reverse !important; 
-}
-
-.workspace-leaf:has(.pet-view-wrapper) .view-header {
-    display: flex !important;
-    min-height: 36px !important;
-    width: 100% !important;
-    order: 2 !important;
-}
-
-.workspace-leaf:has(.pet-view-wrapper) .view-content {
-    order: 1 !important;
-    flex: 1 !important;
-}
-
-.workspace-leaf:has(.pet-view-wrapper) .view-header-title {
-    display: flex !important;
-    order: -1 !important;
-    margin-right: auto !important;
-}
-
-.workspace-leaf:has(.pet-view-wrapper) .view-actions {
-    display: flex !important;
-    width: auto !important;
-    height: auto !important;
-    visibility: visible !important;
-    opacity: 1 !important;
-}
-
-.workspace-leaf:has(.pet-view-wrapper) .view-action {
-    display: flex !important;
-    width: 32px !important;
-    height: 32px !important;
-    opacity: 1 !important;
-}
-
-.workspace-leaf:has(.pet-view-wrapper) .view-content {
-    padding: 8px !important;
-}
-
-/* Hide everything in the header except custom buttons */
-.workspace-leaf:has(.pet-view-wrapper) .view-header-nav-buttons,
-.workspace-leaf:has(.pet-view-wrapper) .view-header-icon,
-.workspace-leaf:has(.pet-view-wrapper) .view-action.mod-bookmark,
-.workspace-leaf:has(.pet-view-wrapper) .view-actions > .clickable-icon:last-child {
-    display: none !important;
 }
