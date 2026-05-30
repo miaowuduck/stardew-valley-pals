@@ -14,7 +14,7 @@ This plugin is built on top of [obsidian-pets](https://github.com/hiden2000/obsi
 
 ### Pets & NPCs
 
-- **11 pet species** with 55+ color variants: cats, dogs, chickens, cows, ducks, rabbits, dinosaurs, parrots, junimos, raccoons, and turtles — each with idle, walk, special, and sleep animations
+- **10 pet species** with 55+ color variants: cats, dogs, chickens, cows, ducks, rabbits, dinosaurs, parrots, junimos, and turtles — each with idle, walk, special, and sleep animations
 - **35 Stardew Valley NPCs** including Abigail, Sebastian, Lewis, Robin, and more — each with their own walking animations and personality
 - All sprites use authentic Stardew Valley pixel art
 

@@ -8,7 +8,6 @@ import duckSprite from "../assets/stardew/pets/duck.png";
 import junimoSprite from "../assets/stardew/pets/junimo.png";
 import parrotSprite from "../assets/stardew/pets/parrot.png";
 import rabbitSprite from "../assets/stardew/pets/rabbit.png";
-import raccoonSprite from "../assets/stardew/pets/raccoon.png";
 import turtleSprite from "../assets/stardew/pets/turtle.png";
 
 import dirtBackground from "../assets/stardew/backgrounds/dirt.png";
@@ -31,7 +30,6 @@ export const stardewPetSprites = {
 	junimo: junimoSprite,
 	parrot: parrotSprite,
 	rabbit: rabbitSprite,
-	raccoon: raccoonSprite,
 	turtle: turtleSprite,
 };
 
