@@ -316,9 +316,13 @@ export class StardewPet {
 		this.actionLoopPaused = true;
 		void this.playAnimation("idle");
 
-		// Force any in-flight CSS transition to finish immediately by
-		// briefly disabling transitions, reading layout, then restoring.
+		// Cancel any in-flight CSS transition while keeping the pet at its
+		// *current* visual position (no jump to the target).
+		const style = getComputedStyle(this.petEl);
 		this.petEl.setCssStyles({ transition: "none" });
+		this.petEl.setCssProps({ "--left": style.left, "--top": style.top });
+		this.currentX = parseFloat(style.left);
+		this.currentY = parseFloat(style.top);
 		void this.petEl.offsetHeight; // force synchronous layout flush
 		this.petEl.setCssStyles({ transition: "" });
 
@@ -366,60 +370,17 @@ export class StardewPet {
 		const cw = cr.width;
 		const ch = cr.height;
 
-		// Candidate sides — each describes where the bubble would go
-		type Side = "top" | "bottom" | "left" | "right";
-		interface Candidate {
-			side: Side;
-			space: number;          // available px in that direction
-			left: number;           // bubble.style.left
-			top: number;            // bubble.style.top
-			arrowX: number | null;  // arrow offset along bubble edge (px from left)
-			arrowY: number | null;  // arrow offset along bubble edge (px from top)
-		}
-
-		const candidates: Candidate[] = [
-			{
-				side: "top",
-				space: pTop - GAP,
-				left: pcx - bw / 2,
-				top: pTop - bh - GAP,
-				arrowX: bw / 2,
-				arrowY: null,
-			},
-			{
-				side: "bottom",
-				space: ch - pBottom - GAP,
-				left: pcx - bw / 2,
-				top: pBottom + GAP,
-				arrowX: bw / 2,
-				arrowY: null,
-			},
-			{
-				side: "left",
-				space: pLeft - GAP,
-				left: pLeft - bw - GAP,
-				top: pcy - bh / 2,
-				arrowX: null,
-				arrowY: bh / 2,
-			},
-			{
-				side: "right",
-				space: cw - pRight - GAP,
-				left: pRight + GAP,
-				top: pcy - bh / 2,
-				arrowX: null,
-				arrowY: bh / 2,
-			},
-		];
+		// Bubble only above or below the pet.
+		const candidates = [
+			{ side: "top"   , space: pTop - GAP,          left: pcx - bw / 2, top: pTop - bh - GAP },
+			{ side: "bottom", space: ch - pBottom - GAP,  left: pcx - bw / 2, top: pBottom + GAP },
+		] as const;
 
 		// Prefer the side that fits entirely; otherwise pick the one with
 		// the most room so clipping is minimised.
-		const neededW = bw + MARGIN;
 		const neededH = bh + MARGIN;
 		const fitting = candidates.filter(
-			(c) => c.side === "top" || c.side === "bottom"
-				? c.space >= neededH && c.left >= MARGIN && c.left + bw <= cw - MARGIN
-				: c.space >= neededW && c.top >= MARGIN && c.top + bh <= ch - MARGIN,
+			(c) => c.space >= neededH && c.left >= MARGIN && c.left + bw <= cw - MARGIN,
 		);
 		const pool = fitting.length > 0 ? fitting : candidates;
 		const best = pool.reduce((a, b) => (a.space > b.space ? a : b));
@@ -428,21 +389,14 @@ export class StardewPet {
 		const left = Math.max(MARGIN, Math.min(cw - bw - MARGIN, best.left));
 		const top = Math.max(MARGIN, Math.min(ch - bh - MARGIN, best.top));
 
-		// Recalculate arrow so it always points at the pet centre,
-		// even after the bubble was clamped.
 		bubble.style.left = `${left}px`;
 		bubble.style.top = `${top}px`;
 		bubble.className = `pet-speech-bubble pet-speech-bubble--${best.side}`;
 
-		const arrowX = pcx - left; // px from bubble's left edge
-		const arrowY = pcy - top;  // px from bubble's top edge
-
-		if (best.side === "top" || best.side === "bottom") {
-			bubble.style.setProperty("--sb-arrow-x", `${Math.max(8, Math.min(bw - 8, arrowX))}px`);
-		} else {
-			bubble.style.setProperty("--sb-arrow-y", `${Math.max(8, Math.min(bh - 8, arrowY))}px`);
+		// Arrow always points at the pet centre from the bubble's top/bottom edge.
+		const arrowX = pcx - left;
+		bubble.style.setProperty("--sb-arrow-x", `${Math.max(8, Math.min(bw - 8, arrowX))}px`);
 		}
-	}
 
 	public clearSpeechBubble() {
 		if (this.speechBubbleEl) {
