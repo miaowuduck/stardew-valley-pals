@@ -23,7 +23,7 @@ This plugin is built on top of [obsidian-pets](https://github.com/hiden2000/obsi
 - **Panel mode**: Pets live in a resizable panel you can dock anywhere in your workspace
 - **Overlay mode**: Pets roam freely across your entire Obsidian window
 - Drag pets to reposition them, or let them wander on their own
-- Click a pet to show a heart, right-click to trigger a speech bubble
+- Click a pet to show a heart, right-click to trigger an AI speech bubble
 
 ### AI-Powered Speech Bubbles
 
@@ -31,7 +31,7 @@ Pets and NPCs can comment on your notes using AI, with configurable persona-base
 
 - **Right-click** a pet to get a contextual comment about your current note
 - **Auto-rant mode**: Pets periodically speak up on their own at random intervals
-- Supports **OpenAI**, **Google Gemini**, **DeepSeek**, and **Alibaba Bailian** (any OpenAI-compatible API)
+- Supports any **OpenAI-compatible API** (OpenAI, Google Gemini, DeepSeek, and more)
 - Each species and NPC has a unique personality that shapes their dialogue
 - Optional Chinese-language prompt mode for all AI interactions
 
@@ -97,13 +97,13 @@ Click the cat ribbon icon to toggle the pet view on and off.
 | Pet size | Scale pets from 0.5x to 3.0x | 1.0x |
 | Movement speed | How fast pets wander (0.5x to 3.0x) | 1.0x |
 
-### AI Chat Configuration
+### AI Configuration
 
 | Setting | Description | Default |
 |---|---|---|
 | API key | OpenAI-compatible API key (masked in UI) | — |
-| API endpoint | Base URL for the chat provider | `https://api.openai.com/v1` |
-| Chat model | Model name (e.g. `gpt-4o-mini`, `gemini-2.5-flash`) | `gpt-5-mini` |
+| API endpoint | Base URL for the AI provider | `https://api.openai.com/v1` |
+| Model | Model name (e.g. `gpt-4o-mini`, `gemini-2.5-flash`) | `gpt-5-mini` |
 | Chinese prompt | Use Chinese-language AI prompts | Off |
 | Test connection | Verify API credentials with a minimal request | — |
 
@@ -134,9 +134,8 @@ To enable speech bubbles, configure an API provider in settings:
    - [OpenAI](https://platform.openai.com/api-keys)
    - [Google Gemini](https://aistudio.google.com/)
    - [DeepSeek](https://api-docs.deepseek.com/)
-   - [Alibaba Bailian](https://bailian.console.aliyun.com/)
-2. Set the **API endpoint** (the "Use Gemini URL" button pre-fills the Gemini-compatible endpoint)
-3. Enter the **chat model** name for your provider
+2. Set the **API endpoint** (e.g. `https://api.openai.com/v1` for OpenAI, or `https://generativelanguage.googleapis.com/v1beta/openai/` for Gemini)
+3. Enter the **model** name for your provider
 4. Click **Test connection** to verify everything works
 5. Enable pet/NPC speech bubbles and optionally random page rants
 
