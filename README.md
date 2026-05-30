@@ -9,35 +9,33 @@ Bring the charming world of **Stardew Valley** into your Obsidian vault. Adopt a
 
 ## 📸 Demo
 
-### Pets in Action
+### Pets and in Action
 
 *① Pets wandering around, idling, and sleeping in your vault.*
 
-<!-- ![](assets/demo/pets-demo.gif) -->
-
-### NPCs
-
 *② Stardew Valley NPCs walking and interacting with your notes.*
 
-<!-- ![](assets/demo/npcs-demo.gif) -->
+![readmepics/pets-demo.gif](readmepics/pets-demo.gif) 
 
 ### AI Speech Bubbles
 
 *③ Right-click a character to get a contextual comment about your current note.*
 
-<!-- ![](assets/demo/speech-bubble-demo.gif) -->
+![readmepics/speech-bubble-demo.gif](readmepics/speech-bubble-demo.gif)
 
 ### Overlay Mode
 
 *④ Pets roaming freely across your entire Obsidian window.*
 
-<!-- ![](assets/demo/overlay-demo.gif) -->
+![readmepics/overlay-demo.gif](readmepics/overlay-demo.gif)
 
 ---
 
 ## ✨ Features
 
 ### 🐱 Pets & 👥 NPCs
+![readmepics/pets.gif](readmepics/pets.gif)
+![readmepics/NPCs.gif](readmepics/NPCs.gif)
 
 | Category | Details |
 |---|---|
