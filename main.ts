@@ -326,9 +326,14 @@ export default class PetPlugin extends Plugin {
 		});
 	}
 
-	showAddPetCommand() {
+	showAddPetCommand(onComplete?: () => void) {
 		new SelectorModal(this.app, this.PETS, async (value: string, name: string) => {
 			await this.addPet(value, name);
+			if (onComplete) {
+				// Defer to the next macrotask so the modal has time to close
+				// before the caller refreshes UI that sits behind the modal.
+				activeWindow.setTimeout(() => onComplete(), 0);
+			}
 		}).open();
 	}
 

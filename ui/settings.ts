@@ -1,6 +1,7 @@
 import { PluginSettingTab, App, Setting, Notice } from "obsidian";
 import PetPlugin from "../main";
 import { initModel } from "../ai/chat";
+import { getStardewSpeciesDefinition } from "../pets/stardew-species";
 
 function addLabeledSlider(
 	setting: Setting,
@@ -118,6 +119,50 @@ export class PetSettingTab extends PluginSettingTab {
 					}
 				)
 			);
+
+		// ── Pet Management ────────────────────────────────────
+		containerEl.createEl("h2", { text: "Pet Management" });
+
+		const pets = this.plugin.instanceData.pets;
+		if (pets.length === 0) {
+			containerEl.createEl("p", {
+				text: "No pets yet. Click \"Add Pet\" below to bring in your first companion!",
+				cls: "setting-item-description",
+			});
+		} else {
+			for (const pet of pets) {
+				const speciesLabel =
+					getStardewSpeciesDefinition(pet.type)?.label ?? pet.type;
+				new Setting(containerEl)
+					.setName(pet.name)
+					.setDesc(`Type: ${speciesLabel}`)
+					.addButton((button) => {
+						button
+							.setButtonText("Remove")
+							.setWarning()
+							.onClick(async () => {
+								await this.plugin.removePetById(pet.id);
+								this.display();
+							});
+					});
+			}
+		}
+
+		new Setting(containerEl)
+			.setName("Add a new pet")
+			.setDesc(
+				"Choose from cats, dogs, and Stardew Valley NPCs to join your vault."
+			)
+			.addButton((button) => {
+				button
+					.setButtonText("Add Pet")
+					.setCta()
+					.onClick(() => {
+						this.plugin.showAddPetCommand(() => {
+							this.display();
+						});
+					});
+			});
 
 		// ── AI Configuration ────────────────────────────────
 		containerEl.createEl("h2", { text: "AI Configuration" });
