@@ -245,16 +245,14 @@
 	animation: speech-pop 0.2s ease-out;
 }
 
-/* Arrow — shared */
+/* Arrow — a rotated square that blends into the bubble via background: inherit.
+   No border — the bubble's own border frames the connection point naturally. */
 .pet-speech-bubble::after {
 	content: "";
 	position: absolute;
 	width: 10px;
 	height: 10px;
 	background: inherit;
-	border: 1px solid var(--background-modifier-border);
-	border-top: none;
-	border-right: none;
 }
 
 /* Bubble ABOVE the pet — arrow at bottom edge, pointing down */

@@ -261,6 +261,8 @@ export class StardewPet {
 
 			if (!hasDragged && (Math.abs(dx) > this.dragThreshold || Math.abs(dy) > this.dragThreshold)) {
 				hasDragged = true;
+				// Dismiss any active speech bubble — dragging takes priority.
+				this.clearSpeechBubble();
 				this.actionLoopPaused = true;
 				// Kill CSS transition so the pet follows the cursor without lag.
 				this.petEl.setCssStyles({ transition: "none" });
