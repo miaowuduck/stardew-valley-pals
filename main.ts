@@ -44,9 +44,22 @@ export default class PetPlugin extends Plugin {
 		this.addSettingTab(new PetSettingTab(this.app, this));
 
 		this.addRibbonIcon("cat", "Toggle pet view", async () => {
-			const isOpen = this.app.workspace.getLeavesOfType(VIEW_TYPE_PET).length > 0;
-			if (isOpen) await this.closeView();
-			else await this.openView();
+			if (this.instanceData.overlayMode) {
+				if (this.overlayView) {
+					this.overlayView.destroy();
+					this.overlayView = null;
+				} else {
+					this.overlayView = new OverlayPetView(this);
+					for (const pet of this.instanceData.pets) {
+						this.overlayView.addPet(pet);
+					}
+					this.overlayView.startRantLoop();
+				}
+			} else {
+				const isOpen = this.app.workspace.getLeavesOfType(VIEW_TYPE_PET).length > 0;
+				if (isOpen) await this.closeView();
+				else await this.openView();
+			}
 		});
 
 		this.app.workspace.onLayoutReady(async () => {

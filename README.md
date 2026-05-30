@@ -118,10 +118,11 @@ Pets and NPCs can comment on your notes using AI, with configurable persona-base
 ## 🚀 Getting Started
 
 1. Enable the plugin — a welcome notice will guide you on first launch
-2. Use the **"Add a pet"** command (or click the `+` button in the pet panel) to choose a species/NPC and give it a name
+2. Use the **"Add a pet"** command, the `+` button in the pet panel, or the **Pet Management** section in settings to choose a species/NPC and give it a name
 3. The pet panel opens automatically — your new friend will start wandering around
 4. Use **"Choose pet view background"** to set the scene
-5. (Optional) Configure AI speech in **Settings** to let your pets talk
+5. Manage your pets anytime in **Settings → Pet Management** — add, view, or remove pets from one place
+6. (Optional) Configure AI speech in **Settings** to let your pets talk
 
 Click the 🐱 ribbon icon in the left sidebar to toggle the pet view on and off.
 
@@ -148,6 +149,13 @@ Click the 🐱 ribbon icon in the left sidebar to toggle the pet view on and off
 | Background | Scene behind pets (panel mode only) | None |
 | Pet size | Scale pets from 0.5x to 3.0x | 1.0x |
 | Movement speed | How fast pets wander (0.5x to 3.0x) | 1.0x |
+
+### Pet Management
+
+| Setting | Description |
+|---|---|
+| Current pets | View all your pets with their names and species, remove any pet with one click |
+| Add a new pet | Opens the pet selector to choose from 15+ species and 35+ NPCs |
 
 ### AI Configuration
 
