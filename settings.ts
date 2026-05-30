@@ -124,7 +124,7 @@ export class PetSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName("OpenAI API key")
-			.setDesc("Your API key for OpenAI, Gemini, DeepSeek, or another OpenAI-compatible provider.")
+			.setDesc("Your API key for OpenAI, DeepSeek, or another OpenAI-compatible provider.")
 			.addText((text) => {
 				text.setValue(this.plugin.instanceData.openAiApiKey || "")
 					.onChange(async (value) => {
@@ -146,24 +146,17 @@ export class PetSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName("API endpoint")
-			.setDesc("OpenAI-compatible base URL. Defaults to OpenAI. Use the button to switch to Google Gemini.")
+			.setDesc("OpenAI-compatible base URL. Defaults to OpenAI.")
 			.addText((text) => {
 				text.setValue(this.plugin.instanceData.openAiBaseUrl || "https://api.openai.com/v1")
 					.onChange(async (value) => {
 						this.plugin.updateOpenAiBaseUrl(value.trim() || "https://api.openai.com/v1");
 						this.display();
 					});
-			})
-			.addButton((button) => {
-				button.setButtonText("Use Gemini URL").onClick(() => {
-					this.plugin.updateOpenAiBaseUrl("https://generativelanguage.googleapis.com/v1beta/openai/");
-					this.display();
-				});
 			});
-
 		new Setting(containerEl)
 			.setName("Model")
-			.setDesc("Model name for your provider (e.g. gpt-4o-mini, gemini-2.5-flash, deepseek-chat).")
+			.setDesc("Model name for your provider (e.g. gpt-4o-mini, deepseek-chat).")
 			.addText((text) => {
 				text.setValue(this.plugin.instanceData.selectedModel || "gpt-5-mini")
 					.onChange(async (value) => {
