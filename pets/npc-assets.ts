@@ -2,7 +2,6 @@ import abigailSprite from "../assets/stardew/NPC/Abigail..png";
 import alexSprite from "../assets/stardew/NPC/Alex..png";
 import carolineSprite from "../assets/stardew/NPC/Caroline..png";
 import clintSprite from "../assets/stardew/NPC/Clint..png";
-import danaSprite from "../assets/stardew/NPC/Dana..png";
 import demetriusSprite from "../assets/stardew/NPC/Demetrius..png";
 import dickSprite from "../assets/stardew/NPC/Dick..png";
 import dwarfSprite from "../assets/stardew/NPC/Dwarf..png";
@@ -40,15 +39,11 @@ import toddlerGirlDarkSprite from "../assets/stardew/NPC/Toddler_girl_dark..png"
 import vincentSprite from "../assets/stardew/NPC/Vincent..png";
 import willySprite from "../assets/stardew/NPC/Willy..png";
 import wizardSprite from "../assets/stardew/NPC/Wizard..png";
-import femaleRivalSprite from "../assets/stardew/NPC/femaleRival..png";
-import maleRivalSprite from "../assets/stardew/NPC/maleRival..png";
-
 export const stardewNpcSprites: Record<string, string> = {
 	Abigail: abigailSprite,
 	Alex: alexSprite,
 	Caroline: carolineSprite,
 	Clint: clintSprite,
-	Dana: danaSprite,
 	Demetrius: demetriusSprite,
 	Dick: dickSprite,
 	Dwarf: dwarfSprite,
@@ -86,8 +81,6 @@ export const stardewNpcSprites: Record<string, string> = {
 	Vincent: vincentSprite,
 	Willy: willySprite,
 	Wizard: wizardSprite,
-	femaleRival: femaleRivalSprite,
-	maleRival: maleRivalSprite,
 };
 
 export type StardewNpcSpriteKey = keyof typeof stardewNpcSprites;

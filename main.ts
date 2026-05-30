@@ -1,24 +1,24 @@
 import { Plugin, Notice, WorkspaceLeaf, MarkdownView } from "obsidian";
-import type { PetInstance, PetPluginData } from "./core/types";
+import type { PetInstance, PetPluginData, SelectorOption } from "./core/types";
 import { isNpcSpeciesType } from "./core/types";
 import { DEFAULT_DATA, BACKGROUNDS, LEGACY_BACKGROUND_MAP, NEW_NOTE_MESSAGES, getFallbackRantText } from "./core/constants";
 import { PetView, VIEW_TYPE_PET } from "./views/pet-view";
 import { OverlayPetView } from "./views/overlay-view";
 import { PetSettingTab } from "./ui/settings";
-import { SelectorModal, type SelectorOption } from "./ui/modals";
+import { SelectorModal } from "./ui/modals";
 import { generatePageRantText, initModel } from "./ai/chat";
 import { STARDEW_SPECIES_OPTIONS, getStardewSpeciesPersona } from "./pets/stardew-species";
-import OpenAI from "openai";
+import type OpenAI from "openai";
 
 export type { PetInstance };
 
 export default class PetPlugin extends Plugin {
 	instanceData!: PetPluginData;
-	recentActivity: { ts: number; type: "modify" | "create" | "open"; path: string }[] = [];
+	private recentActivity: { ts: number; type: "modify" | "create" | "open"; path: string }[] = [];
 	private chatmodel: OpenAI | null = null;
 	private overlayView: OverlayPetView | null = null;
-	protected PETS: SelectorOption[] = STARDEW_SPECIES_OPTIONS;
-	protected BACKGROUNDS: SelectorOption[] = BACKGROUNDS;
+	protected readonly PETS: SelectorOption[] = STARDEW_SPECIES_OPTIONS;
+	protected readonly BACKGROUNDS: SelectorOption[] = BACKGROUNDS;
 
 	// ── Lifecycle ──────────────────────────────────────────────
 
@@ -104,18 +104,10 @@ export default class PetPlugin extends Plugin {
 		if (!this.instanceData.nextPetIdCounters) {
 			this.instanceData.nextPetIdCounters = {};
 		}
-
-		// These keys are NOT in DEFAULT_DATA — keep as explicit defaults
-		if (this.instanceData.openAiApiKey === undefined) {
-			this.instanceData.openAiApiKey = "";
-		}
-		if (!this.instanceData.selectedModel) {
-			this.instanceData.selectedModel = "gpt-5-mini";
-		}
 	}
 
 	private updateSetting<K extends keyof PetPluginData>(key: K, value: PetPluginData[K]): void {
-		(this.instanceData as unknown as Record<string, unknown>)[key] = value;
+		this.instanceData[key] = value;
 		void this.saveData(this.instanceData);
 	}
 
@@ -328,14 +320,12 @@ export default class PetPlugin extends Plugin {
 
 	private registerNewNoteNotices() {
 		this.app.workspace.onLayoutReady(() => {
-			activeWindow.setTimeout(() => {
-				this.registerEvent(
-					this.app.vault.on("create", () => {
-						const msg = NEW_NOTE_MESSAGES[Math.floor(Math.random() * NEW_NOTE_MESSAGES.length)];
-						new Notice(msg);
-					}),
-				);
-			}, 1000);
+			this.registerEvent(
+				this.app.vault.on("create", () => {
+					const msg = NEW_NOTE_MESSAGES[Math.floor(Math.random() * NEW_NOTE_MESSAGES.length)];
+					new Notice(msg);
+				}),
+			);
 		});
 	}
 

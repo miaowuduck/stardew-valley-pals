@@ -1,12 +1,11 @@
 import { ItemView, WorkspaceLeaf } from "obsidian";
 import type PetPlugin from "../main";
 import type { PetInstance } from "../core/types";
-import { isNpcSpeciesType } from "../core/types";
 import { getBackgroundAsset } from "../pets/pet-assets";
 import { createRenderablePet } from "../pets/factory";
 import type { RenderablePet } from "../pets/factory";
 import { SelectorModal } from "../ui/modals";
-import { createRantLoopScheduler } from "../ui/rant-loop";
+import { createRantLoopScheduler, createViewRantLoopOptions } from "../ui/rant-loop";
 
 export const VIEW_TYPE_PET = "pet-view";
 
@@ -92,7 +91,6 @@ export class PetView extends ItemView {
 		const background = this.plugin.getSelectedBackground();
 
 		wrapper.querySelector(".pet-view-background")?.remove();
-		wrapper.querySelector(".pet-view-background-animation")?.remove();
 
 		if (background === "none") return;
 
@@ -266,36 +264,14 @@ export class PetView extends ItemView {
 	}
 
 	private startRantLoop() {
-		this.rantLoop = createRantLoopScheduler({
-			isEnabled: () => this.plugin.instanceData.pageRantEnabled,
-			onlyWhenFocused: () => this.plugin.instanceData.pageRantOnlyWhenFocused ?? true,
-			getMinMs: () => {
-				const minMinutes = Math.min(
-					this.plugin.instanceData.pageRantMinMinutes || 5,
-					this.plugin.instanceData.pageRantMaxMinutes || 20,
-				);
-				return minMinutes * 60 * 1000;
-			},
-			getMaxMs: () => {
-				const maxMinutes = Math.max(
-					this.plugin.instanceData.pageRantMinMinutes || 5,
-					this.plugin.instanceData.pageRantMaxMinutes || 20,
-				);
-				return maxMinutes * 60 * 1000;
-			},
-			getTargets: () =>
+		this.rantLoop = createRantLoopScheduler(
+			createViewRantLoopOptions(this.plugin, () =>
 				this.pets.map((p) => ({
 					type: p.type,
 					showSpeechBubble: (text: string) => p.pet.showSpeechBubble(text),
 				})),
-			getRantText: (type: string) => this.plugin.getPageRantText("timer", type),
-			isSpeechEnabled: (type: string) => {
-				const isNPC = isNpcSpeciesType(type);
-				return isNPC
-					? (this.plugin.instanceData.npcSpeechEnabled ?? true)
-					: (this.plugin.instanceData.petSpeechEnabled ?? true);
-			},
-		});
+			),
+		);
 		this.rantLoop.start();
 	}
 }

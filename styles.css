@@ -97,16 +97,6 @@
 	background-size: auto;
 }
 
-.pet-view-background-animation {
-	position: absolute;
-	top: 0;
-	left: 0;
-	width: 100%;
-	height: 100%;
-	object-fit: cover;
-	z-index: 1;
-}
-
 /* Use css variables for most of the dynamically changing values, i.e. top, transition, etc. */
 .pet {
 	position: absolute;
@@ -282,11 +272,6 @@
 		opacity: 0;
 		transform: translateX(-50%) scaleX(var(--scale-x, 1)) translateY(-30px) scale(0.8);
 	}
-}
-
-@keyframes pet-sprite {
-	from { background-position: 0 0; }
-	to   { background-position: var(--sprite-total-width) 0; }
 }
 
 /* ------------- Pet Selector Grid ------------- */

@@ -1,8 +1,5 @@
 import { Modal, App } from "obsidian";
-
 import type { SelectorOption } from "../core/types";
-
-export type { SelectorOption };
 
 export class SelectorModal extends Modal {
 	options: SelectorOption[];
@@ -107,6 +104,7 @@ export class SelectorModal extends Modal {
 				};
 			}
 
+			card.createDiv({ cls: "pet-selector-label", text: option.label });
 		}
 	}
 

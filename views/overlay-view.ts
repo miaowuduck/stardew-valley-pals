@@ -1,8 +1,7 @@
 import type PetPlugin from "../main";
 import type { PetInstance } from "../core/types";
-import { isNpcSpeciesType } from "../core/types";
 import { createRenderablePet } from "../pets/factory";
-import { createRantLoopScheduler } from "../ui/rant-loop";
+import { createRantLoopScheduler, createViewRantLoopOptions } from "../ui/rant-loop";
 
 export class OverlayPetView {
 	private overlayEl: HTMLElement;
@@ -118,36 +117,14 @@ export class OverlayPetView {
 	}
 
 	startRantLoop() {
-		this.rantLoop = createRantLoopScheduler({
-			isEnabled: () => this.plugin.instanceData.pageRantEnabled,
-			onlyWhenFocused: () => this.plugin.instanceData.pageRantOnlyWhenFocused ?? true,
-			getMinMs: () => {
-				const minMinutes = Math.min(
-					this.plugin.instanceData.pageRantMinMinutes || 5,
-					this.plugin.instanceData.pageRantMaxMinutes || 20,
-				);
-				return minMinutes * 60 * 1000;
-			},
-			getMaxMs: () => {
-				const maxMinutes = Math.max(
-					this.plugin.instanceData.pageRantMinMinutes || 5,
-					this.plugin.instanceData.pageRantMaxMinutes || 20,
-				);
-				return maxMinutes * 60 * 1000;
-			},
-			getTargets: () =>
+		this.rantLoop = createRantLoopScheduler(
+			createViewRantLoopOptions(this.plugin, () =>
 				this.pets.map((p) => ({
 					type: p.type,
 					showSpeechBubble: (text: string) => p.pet.showSpeechBubble(text),
 				})),
-			getRantText: (type: string) => this.plugin.getPageRantText("timer", type),
-			isSpeechEnabled: (type: string) => {
-				const isNPC = isNpcSpeciesType(type);
-				return isNPC
-					? (this.plugin.instanceData.npcSpeechEnabled ?? true)
-					: (this.plugin.instanceData.petSpeechEnabled ?? true);
-			},
-		});
+			),
+		);
 		this.rantLoop.start();
 	}
 }

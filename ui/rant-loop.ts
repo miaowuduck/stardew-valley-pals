@@ -1,4 +1,7 @@
 import { isNpcSpeciesType } from "../core/types";
+import type PetPlugin from "../main";
+
+// ── Types ──────────────────────────────────────────────────────
 
 interface RantTarget {
 	type: string;
@@ -21,6 +24,8 @@ interface RantLoopOptions {
 	/** Whether speech is allowed for a given pet type. */
 	isSpeechEnabled: (type: string) => boolean;
 }
+
+// ── Scheduler ──────────────────────────────────────────────────
 
 /**
  * Creates a rant-loop scheduler that periodically picks a random pet/NPC
@@ -73,6 +78,41 @@ export function createRantLoopScheduler(opts: RantLoopOptions) {
 				activeWindow.clearTimeout(timeoutId);
 				timeoutId = null;
 			}
+		},
+	};
+}
+
+// ── Shared view rant-loop factory ──────────────────────────────
+
+/** Builds rant-loop options common to both PetView and OverlayPetView. */
+export function createViewRantLoopOptions(
+	plugin: PetPlugin,
+	getPets: () => RantTarget[],
+): RantLoopOptions {
+	return {
+		isEnabled: () => plugin.instanceData.pageRantEnabled,
+		onlyWhenFocused: () => plugin.instanceData.pageRantOnlyWhenFocused ?? true,
+		getMinMs: () => {
+			const minMinutes = Math.min(
+				plugin.instanceData.pageRantMinMinutes || 5,
+				plugin.instanceData.pageRantMaxMinutes || 20,
+			);
+			return minMinutes * 60 * 1000;
+		},
+		getMaxMs: () => {
+			const maxMinutes = Math.max(
+				plugin.instanceData.pageRantMinMinutes || 5,
+				plugin.instanceData.pageRantMaxMinutes || 20,
+			);
+			return maxMinutes * 60 * 1000;
+		},
+		getTargets: getPets,
+		getRantText: (type: string) => plugin.getPageRantText("timer", type),
+		isSpeechEnabled: (type: string) => {
+			const isNPC = isNpcSpeciesType(type);
+			return isNPC
+				? (plugin.instanceData.npcSpeechEnabled ?? true)
+				: (plugin.instanceData.petSpeechEnabled ?? true);
 		},
 	};
 }

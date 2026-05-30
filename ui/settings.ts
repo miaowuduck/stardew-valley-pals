@@ -2,6 +2,7 @@ import { PluginSettingTab, App, Setting, Notice } from "obsidian";
 import PetPlugin from "../main";
 import { initModel } from "../ai/chat";
 import { getStardewSpeciesDefinition } from "../pets/stardew-species";
+import { DEFAULT_DATA } from "../core/constants";
 
 function addLabeledSlider(
 	setting: Setting,
@@ -384,21 +385,7 @@ export class PetSettingTab extends PluginSettingTab {
 				button.setButtonText("Reset to defaults")
 					.setWarning()
 					.onClick(async () => {
-						this.plugin.instanceData.selectedBackground = "none";
-						this.plugin.instanceData.petSize = 1;
-						this.plugin.instanceData.petSpeed = 1;
-						this.plugin.instanceData.overlayMode = false;
-						this.plugin.instanceData.openAiApiKey = "";
-						this.plugin.instanceData.openAiBaseUrl = "https://api.openai.com/v1";
-						this.plugin.instanceData.selectedModel = "gpt-5-mini";
-						this.plugin.instanceData.useChinesePrompt = false;
-						this.plugin.instanceData.pageRantEnabled = false;
-						this.plugin.instanceData.pageRantMinMinutes = 5;
-						this.plugin.instanceData.pageRantMaxMinutes = 20;
-						this.plugin.instanceData.pageRantContextChars = 1200;
-						this.plugin.instanceData.pageRantOnlyWhenFocused = true;
-						this.plugin.instanceData.petSpeechEnabled = true;
-						this.plugin.instanceData.npcSpeechEnabled = true;
+						Object.assign(this.plugin.instanceData, DEFAULT_DATA);
 						await this.plugin.saveData(this.plugin.instanceData);
 						this.display();
 						new Notice("Settings have been reset to defaults.");

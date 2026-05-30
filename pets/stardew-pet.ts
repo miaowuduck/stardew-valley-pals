@@ -1,14 +1,7 @@
 import { Notice } from "obsidian";
 import { heartAsset } from "./pet-assets";
-import { getStardewSpeciesSprite, isNpcSpeciesType } from "./stardew-species";
+import { getStardewSpeciesSprite, isNpcSpeciesType, toAnimation } from "./stardew-species";
 import type { StardewAnimation, StardewSpeciesDefinition } from "./stardew-species";
-
-type AnimationState = StardewAnimation | StardewAnimation[];
-
-function toAnimation(animation: AnimationState | undefined): StardewAnimation | undefined {
-	if (!animation) return undefined;
-	return Array.isArray(animation) ? animation[0] : animation;
-}
 
 function wait(ms: number): Promise<void> {
 	return new Promise((resolve) => activeWindow.setTimeout(resolve, ms));
@@ -333,13 +326,8 @@ export class StardewPet {
 		}
 	}
 
-	private getGroundTopValue(backgroundName: string): string {
-		void backgroundName;
-		return `${this.currentY}px`;
-	}
-
-	public updateVerticalPosition(newBackground: string) {
-		this.petEl.setCssProps({ "--top": this.getGroundTopValue(newBackground) });
+	public updateVerticalPosition(_newBackground: string) {
+		this.petEl.setCssProps({ "--top": `${this.currentY}px` });
 	}
 
 	public async clampToContainer() {

@@ -570,7 +570,7 @@ export const STARDEW_SPECIES_OPTIONS: SelectorOption[] = [...speciesList, ...npc
 	};
 });
 
-function toAnimation(animation: StardewAnimation | StardewAnimation[] | undefined): StardewAnimation | undefined {
+export function toAnimation(animation: StardewAnimation | StardewAnimation[] | undefined): StardewAnimation | undefined {
 	if (!animation) return undefined;
 	return Array.isArray(animation) ? animation[0] : animation;
 }

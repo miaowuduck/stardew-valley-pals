@@ -8,8 +8,11 @@ export const DEFAULT_DATA: Partial<PetPluginData> = {
 	nextPetIdCounters: {},
 	overlayMode: false,
 	petSpeed: 1,
+	petSize: 1,
 	useChinesePrompt: false,
+	openAiApiKey: "",
 	openAiBaseUrl: "https://api.openai.com/v1",
+	selectedModel: "gpt-5-mini",
 	pageRantEnabled: false,
 	pageRantMinMinutes: 5,
 	pageRantMaxMinutes: 20,
@@ -17,7 +20,6 @@ export const DEFAULT_DATA: Partial<PetPluginData> = {
 	pageRantOnlyWhenFocused: true,
 	petSpeechEnabled: true,
 	npcSpeechEnabled: true,
-	petSize: 1,
 	firstRunComplete: false,
 };
 
