@@ -262,7 +262,10 @@ export class StardewPet {
 			if (!hasDragged && (Math.abs(dx) > this.dragThreshold || Math.abs(dy) > this.dragThreshold)) {
 				hasDragged = true;
 				this.actionLoopPaused = true;
+				// Kill CSS transition so the pet follows the cursor without lag.
 				this.petEl.setCssStyles({ transition: "none" });
+				// Visual feedback: lift the pet off the ground.
+				this.petEl.addClass("pet-dragging");
 			}
 
 			if (hasDragged) {
@@ -280,8 +283,9 @@ export class StardewPet {
 			document.removeEventListener("mouseup", onMouseUp);
 
 			if (hasDragged) {
-				this.actionLoopPaused = false;
+				this.petEl.removeClass("pet-dragging");
 				this.petEl.setCssStyles({ transition: "" });
+				this.actionLoopPaused = false;
 			} else {
 				this.showHeart();
 			}

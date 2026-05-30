@@ -134,6 +134,15 @@
 	opacity: 1;
 }
 
+/* Dragging state — lifted off the ground with drop-shadow and slight scale-up */
+.pet.pet-dragging {
+	z-index: 9999 !important;
+	filter: drop-shadow(0 8px 12px rgba(0, 0, 0, 0.35));
+	transform: translate(-50%, -50%) scale(var(--scale, 1)) scaleX(var(--scale-x, 1)) scale(1.12);
+	transition: none !important;
+	cursor: grabbing;
+}
+
 .pet-settings-modal .selector-button {
 	border: none;
 	background: none;

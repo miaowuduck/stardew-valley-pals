@@ -1,6 +1,6 @@
 import esbuild from "esbuild";
 import process from "process";
-import { readFileSync } from "fs";
+import { readFileSync, writeFileSync } from "fs";
 import path from "path";
 
 const builtins = [
@@ -20,6 +20,19 @@ if you want to view the source, please visit the github repository of this plugi
 `;
 
 const prod = (process.argv[2] === "production");
+
+// Tree-shaking note: every export in this codebase is genuinely reachable — all
+// species definitions feed into STARDEW_SPECIES_OPTIONS and the speciesById map,
+// and every sprite import is referenced by at least one species or NPC definition.
+// esbuild's treeShaking is working correctly; there simply isn't dead code *to* remove.
+//
+// To audit the bundle, pass --metafile (generates meta.json):
+//   node esbuild.config.mjs production --metafile
+// Then visualize with:
+//   npx esbuild-visualizer --metadata meta.json --filename viz.html
+
+const metafile = prod && process.argv.includes("--metafile");
+
 // Plugin to bundle images as base64 data URLs
 const imagePlugin = {
 	name: 'images',
@@ -42,7 +55,7 @@ const imagePlugin = {
 				'gif': 'image/gif',
 				'svg': 'image/svg+xml'
 			}[ext] || 'application/octet-stream';
-			
+
 			return {
 				contents: `export default "data:${mimeType};base64,${base64}"`,
 				loader: 'js'
@@ -79,11 +92,16 @@ const context = await esbuild.context({
 	treeShaking: true,
 	outfile: "main.js",
 	minify: prod,
+	metafile,
 	plugins: [imagePlugin],
 });
 
 if (prod) {
-	await context.rebuild();
+	const result = await context.rebuild();
+	if (metafile) {
+		writeFileSync("meta.json", JSON.stringify(result.metafile, null, 2));
+		console.log("Wrote meta.json for bundle analysis.");
+	}
 	process.exit(0);
 } else {
 	await context.watch();

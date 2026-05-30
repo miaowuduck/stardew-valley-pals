@@ -4,7 +4,7 @@ import type { PetInstance } from "../core/types";
 import { getBackgroundAsset } from "../pets/pet-assets";
 import { createRenderablePet } from "../pets/factory";
 import type { RenderablePet } from "../pets/factory";
-import { SelectorModal } from "../ui/modals";
+
 import { createRantLoopScheduler, createViewRantLoopOptions } from "../ui/rant-loop";
 
 export const VIEW_TYPE_PET = "pet-view";
@@ -38,25 +38,6 @@ export class PetView extends ItemView {
 			activeWindow.setTimeout(() => this.leaf.detach(), 0);
 			return;
 		}
-
-		this.addAction("image", "Choose a background", () => {
-			this.plugin.showChooseBackgroundCommand();
-		});
-
-		this.addAction("minus", "Remove all pets", async () => {
-			await this.plugin.clearAllPets();
-		});
-
-		this.addAction("x", "Remove a specific pet", () => {
-			if (this.plugin.instanceData.pets.length === 0) return;
-			const options = this.plugin.instanceData.pets.map((pet) => ({
-				value: pet.id,
-				label: `${pet.name} (${this.plugin.getCleanLabel(pet.id)})`,
-			}));
-			new SelectorModal(this.app, options, async (value: string) => {
-				await this.plugin.removePetById(value);
-			}).open();
-		});
 
 		this.addAction("plus", "Add a pet", () => {
 			this.plugin.showAddPetCommand();
