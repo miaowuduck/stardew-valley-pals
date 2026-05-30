@@ -305,31 +305,27 @@ export class StardewPet {
 	}
 
 	// ── Speech bubble (positioned in container coords, not inside .pet) ──
-	// When the pet is mid-step we force the CSS transition to complete
-	// instantly so the bubble always aligns with the pet's final position.
+	// The pet is frozen at its current visual position so the bubble
+	// always aligns perfectly — no drift, no jump.
 
 	public showSpeechBubble(text: string, duration = 4500) {
 		if (this.isDestroyed || !this.petEl) return;
 		this.clearSpeechBubble();
 
-		// Freeze the behaviour loop — no more steps will be scheduled.
+		// Stop the behaviour loop — no new steps will be scheduled.
+		const facing = this.direction;
 		this.actionLoopPaused = true;
 		void this.playAnimation("idle");
+		this.direction = facing;
+		this.petEl.setCssProps({ "--scale-x": `${facing}` });
 
-		// Cancel any in-flight CSS transition while keeping the pet at its
-		// *current* visual position (no jump to the target).
-		const style = getComputedStyle(this.petEl);
-		this.petEl.setCssStyles({ transition: "none" });
-		this.petEl.setCssProps({ "--left": style.left, "--top": style.top });
-		this.currentX = parseFloat(style.left);
-		this.currentY = parseFloat(style.top);
-		void this.petEl.offsetHeight; // force synchronous layout flush
-		this.petEl.setCssStyles({ transition: "" });
+		// Freeze the pet at its current visual position (same logic as hover).
+		this.freezeAtCurrentPosition();
 
 		const bubble = activeDocument.createElement("div");
 		bubble.className = "pet-speech-bubble";
 		bubble.setText(text);
-		bubble.style.visibility = "hidden"; // hidden until positioned
+		bubble.style.visibility = "hidden";
 		this.container.appendChild(bubble);
 		this.speechBubbleEl = bubble;
 
@@ -353,6 +349,10 @@ export class StardewPet {
 		const pr = this.petEl.getBoundingClientRect();
 		const br = bubble.getBoundingClientRect();
 		if (br.width === 0 || br.height === 0) return;
+
+		// Sync tracked coordinates to the pet's actual screen position.
+		this.currentX = pr.left + pr.width / 2 - cr.left;
+		this.currentY = pr.top + pr.height / 2 - cr.top;
 
 		const GAP = 8;   // px between pet edge and bubble
 		const MARGIN = 8; // px clearance from container edges
