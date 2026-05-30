@@ -172,6 +172,7 @@ export class PetView extends ItemView {
 			);
 			if (pet) {
 				this.pets.push({ id: singlePet.id, type: singlePet.type, pet });
+				this.updateEmptyState(this.getWrapper());
 			}
 		} catch (error) {
 			console.error(`Failed to create pet ${singlePet.id}:`, error);
