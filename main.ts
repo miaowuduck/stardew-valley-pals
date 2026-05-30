@@ -2,6 +2,7 @@ import { Plugin, Notice, WorkspaceLeaf, MarkdownView } from "obsidian";
 import type { PetInstance, PetPluginData, SelectorOption } from "./core/types";
 import { isNpcSpeciesType } from "./core/types";
 import { DEFAULT_DATA, BACKGROUNDS, LEGACY_BACKGROUND_MAP, NEW_NOTE_MESSAGES, getFallbackRantText } from "./core/constants";
+import { getStardewSpeciesDefinition } from "./pets/stardew-species";
 import { PetView, VIEW_TYPE_PET } from "./views/pet-view";
 import { OverlayPetView } from "./views/overlay-view";
 import { PetSettingTab } from "./ui/settings";
@@ -93,7 +94,10 @@ export default class PetPlugin extends Plugin {
 	// ── Settings persistence ───────────────────────────────────
 
 	async loadSettings() {
-		this.instanceData = Object.assign({}, DEFAULT_DATA, await this.loadData()) as PetPluginData;
+		const raw = await this.loadData() ?? {};
+		// Clean up stale fields from removed features
+		delete raw.animatedBackground;
+		this.instanceData = Object.assign({}, DEFAULT_DATA, raw) as PetPluginData;
 
 		// Migrate legacy background IDs
 		if (this.instanceData.selectedBackground in LEGACY_BACKGROUND_MAP) {
@@ -103,6 +107,13 @@ export default class PetPlugin extends Plugin {
 		// Ensure counter object exists (older data may lack it)
 		if (!this.instanceData.nextPetIdCounters) {
 			this.instanceData.nextPetIdCounters = {};
+		}
+
+		// Clean up counters for species that no longer exist
+		for (const type of Object.keys(this.instanceData.nextPetIdCounters)) {
+			if (!getStardewSpeciesDefinition(type)) {
+				delete this.instanceData.nextPetIdCounters[type];
+			}
 		}
 	}
 
@@ -119,7 +130,6 @@ export default class PetPlugin extends Plugin {
 			this.chatmodel = initModel(
 				this.instanceData.openAiApiKey,
 				this.instanceData.openAiBaseUrl,
-				this.instanceData.selectedModel,
 			);
 		} catch (e) {
 			console.warn("Failed to initialize chat model:", e);
@@ -446,7 +456,10 @@ export default class PetPlugin extends Plugin {
 	// ── Background ─────────────────────────────────────────────
 
 	async chooseBackground(backgroundFile: string): Promise<void> {
-		if (this.instanceData.overlayMode) return;
+		if (this.instanceData.overlayMode) {
+			new Notice("Background selection is not available in overlay mode. Disable overlay mode in settings first.", 4000);
+			return;
+		}
 		if (this.instanceData.selectedBackground === backgroundFile) return;
 
 		this.instanceData.selectedBackground = backgroundFile;
@@ -480,6 +493,21 @@ export default class PetPlugin extends Plugin {
 			.join(" ");
 	}
 
+	/** Shared speech check used by views and the rant-loop scheduler. */
+	isSpeechEnabled(type: string): boolean {
+		return isNpcSpeciesType(type)
+			? (this.instanceData.npcSpeechEnabled ?? true)
+			: (this.instanceData.petSpeechEnabled ?? true);
+	}
+
+	/** Returns a closure for createRenderablePet's speechEnabledProvider parameter. */
+	getSpeechEnabledProvider(): (isNPC: boolean) => boolean {
+		return (isNPC: boolean) =>
+			isNPC
+				? (this.instanceData.npcSpeechEnabled ?? true)
+				: (this.instanceData.petSpeechEnabled ?? true);
+	}
+
 	// ── Settings updaters ──────────────────────────────────────
 
 	updateOpenAiApiKey(v: string) { this.updateSetting("openAiApiKey", v); }
@@ -506,7 +534,6 @@ export default class PetPlugin extends Plugin {
 			this.chatmodel = initModel(
 				this.instanceData.openAiApiKey,
 				this.instanceData.openAiBaseUrl,
-				this.instanceData.selectedModel || "gpt-5-mini",
 			);
 			new Notice(`Model set to ${this.instanceData.selectedModel}.`);
 		} catch (e) {

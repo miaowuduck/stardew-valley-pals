@@ -56,15 +56,12 @@ export class OverlayPetView {
 				this.overlayEl,
 				singlePet.type,
 				"overlay",
-				singlePet.id.replace(/^pets\//, ""),
+				singlePet.id,
 				this.plugin.instanceData.petSize,
 				singlePet.name,
 				() => this.plugin.getPageRantText("rightclick", singlePet.type),
 				this.plugin.instanceData.petSpeed,
-				(isNPC: boolean) =>
-					isNPC
-						? (this.plugin.instanceData.npcSpeechEnabled ?? true)
-						: (this.plugin.instanceData.petSpeechEnabled ?? true),
+				this.plugin.getSpeechEnabledProvider(),
 			);
 			if (pet) {
 				this.pets.push({ id: singlePet.id, type: singlePet.type, pet });

@@ -247,7 +247,7 @@ export class PetSettingTab extends PluginSettingTab {
 					button.setDisabled(true);
 
 					try {
-						const client = initModel(key, baseUrl, model);
+						const client = initModel(key, baseUrl);
 						const response = await client.chat.completions.create({
 							model: model,
 							messages: [{ role: "user", content: "Say 'ok'" }],

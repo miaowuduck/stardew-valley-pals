@@ -12,22 +12,24 @@ function buildPageRantPrompt(
 	useChinesePrompt: boolean,
 	isNPC: boolean
 ): string {
+	const cn = useChinesePrompt;
+
 	const contextSection = pageContext
-		? `\n页面内容摘录（最多约 ${contextCharLimit} 字）：\n${pageContext}`
-		: "\n页面内容摘录：无可用内容";
+		? `\n${cn ? `页面内容摘录（最多约 ${contextCharLimit} 字）` : `Page excerpt (up to ~${contextCharLimit} chars)`}：\n${pageContext}`
+		: `\n${cn ? "页面内容摘录：无可用内容" : "Page excerpt: none available"}`;
 
 	const activitySection = activitySummary
-		? `\n最近活动摘要（最近约 10 分钟）：\n${activitySummary}`
-		: "\n最近活动摘要：无可用活动";
+		? `\n${cn ? "最近活动摘要（最近约 10 分钟）" : "Recent activity summary (last ~10 min)"}：\n${activitySummary}`
+		: `\n${cn ? "最近活动摘要：无可用活动" : "Recent activity summary: none"}`;
 
 	const selectionSection = selectedText
-		? `\n选中内容（已截断，供参考）：\n${selectedText}`
-		: "\n选中内容：无";
+		? `\n${cn ? "选中内容（已截断，供参考）" : "Selected text (truncated, for reference)"}：\n${selectedText}`
+		: `\n${cn ? "选中内容：无" : "Selected text: none"}`;
 	const personaSection = petPersona
-		? `\n角色身份：${petPersona.identity}\n角色性格：${petPersona.temperament}\n说话风格：${petPersona.rantStyle}`
+		? `\n${cn ? "角色身份" : "Character identity"}：${petPersona.identity}\n${cn ? "角色性格" : "Temperament"}：${petPersona.temperament}\n${cn ? "说话风格" : "Speaking style"}：${petPersona.rantStyle}`
 		: "";
 
-	if (useChinesePrompt) {
+	if (cn) {
 		if (isNPC) {
 			return `你是星露谷（鹈鹕镇）的一个居民，正在 Obsidian 笔记旁边闲逛，偶尔会对看到的内容吐槽、感慨或给出建议。
 
@@ -161,7 +163,6 @@ export async function generatePageRantText(
 export function initModel(
 	openAiKey: string,
 	openAiBaseUrl: string,
-	selectedModel: string
 ) {
 	return new OpenAI({
 		apiKey: openAiKey,

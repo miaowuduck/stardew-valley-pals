@@ -110,7 +110,7 @@ export class PetView extends ItemView {
 			console.error(`Failed to load background: ${background}`, error);
 		}
 
-		this.updateAllPetVerticalPositions(background);
+
 	}
 
 	private updateEmptyState(wrapper: HTMLElement) {
@@ -158,15 +158,12 @@ export class PetView extends ItemView {
 				wrapper,
 				singlePet.type,
 				this.plugin.getSelectedBackground(),
-				singlePet.id.replace(/^pets\//, ""),
+				singlePet.id,
 				this.plugin.instanceData.petSize,
 				singlePet.name,
 				() => this.plugin.getPageRantText("rightclick", singlePet.type),
 				this.plugin.instanceData.petSpeed,
-				(isNPC: boolean) =>
-					isNPC
-						? (this.plugin.instanceData.npcSpeechEnabled ?? true)
-						: (this.plugin.instanceData.petSpeechEnabled ?? true),
+				this.plugin.getSpeechEnabledProvider(),
 			);
 			if (pet) {
 				this.pets.push({ id: singlePet.id, type: singlePet.type, pet });
@@ -194,12 +191,6 @@ export class PetView extends ItemView {
 		this.updateEmptyState(this.getWrapper());
 	}
 
-	updateAllPetVerticalPositions(newBackground: string) {
-		for (const { pet } of this.pets) {
-			pet.updateVerticalPosition(newBackground);
-		}
-	}
-
 	getWrapper(): HTMLElement {
 		const wrapper = this.containerEl.querySelector(".pet-view-wrapper") as HTMLElement;
 		if (!wrapper) throw new Error("pet-view-wrapper not found");
@@ -208,10 +199,8 @@ export class PetView extends ItemView {
 
 	resetPets() {
 		for (const { pet } of this.pets) {
-			pet.destroyImmediate();
+			void pet.clampToContainer();
 		}
-		this.pets = [];
-		this.updateView();
 	}
 
 	private setupResizeObserver() {

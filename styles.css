@@ -107,8 +107,6 @@
 	transform: translate(-50%, -50%) scale(var(--scale, 1)) scaleX(var(--scale-x, 1));
 	background-repeat: no-repeat;
 	background-position: 0 0;
-	background-image: var(--sprite-url);
-	background-size: var(--sprite-size);
 	image-rendering: pixelated;
 	transition: left var(--move-duration, 300ms) linear, top var(--move-duration, 300ms) linear;
 	z-index: 100;

@@ -108,11 +108,6 @@ export function createViewRantLoopOptions(
 		},
 		getTargets: getPets,
 		getRantText: (type: string) => plugin.getPageRantText("timer", type),
-		isSpeechEnabled: (type: string) => {
-			const isNPC = isNpcSpeciesType(type);
-			return isNPC
-				? (plugin.instanceData.npcSpeechEnabled ?? true)
-				: (plugin.instanceData.petSpeechEnabled ?? true);
-		},
+		isSpeechEnabled: (type: string) => plugin.isSpeechEnabled(type),
 	};
 }

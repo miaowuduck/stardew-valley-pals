@@ -572,7 +572,9 @@ export const STARDEW_SPECIES_OPTIONS: SelectorOption[] = [...speciesList, ...npc
 
 export function toAnimation(animation: StardewAnimation | StardewAnimation[] | undefined): StardewAnimation | undefined {
 	if (!animation) return undefined;
-	return Array.isArray(animation) ? animation[0] : animation;
+	if (!Array.isArray(animation)) return animation;
+	// Pick a random variant when multiple animations are defined (e.g. Junimo special)
+	return animation[Math.floor(Math.random() * animation.length)];
 }
 
 export function getStardewSpeciesDefinition(type: string): StardewSpeciesDefinition | undefined {

@@ -51,25 +51,24 @@ export class StardewPet {
 		this.spritesheetUrl = getStardewSpeciesSprite(definition.id);
 		this.isNPC = isNpcSpeciesType(definition.id);
 
-		requestAnimationFrame(() => {
-			const containerWidth = (this.container as HTMLElement).offsetWidth || 400;
-			const containerHeight = (this.container as HTMLElement).offsetHeight || 300;
-			const minX = containerWidth * 0.1;
-			const maxX = containerWidth * 0.9;
-			const minY = containerHeight * 0.1;
-			const maxY = containerHeight * 0.9;
-			this.currentX = Math.random() * (maxX - minX) + minX;
-			this.currentY = Math.random() * (maxY - minY) + minY;
-			this.petEl = this.createPetElement(petId);
-			this.setupHoverListeners();
-			void this.initializeSprite().then(() => {
-				void this.playAnimation("idle");
-				if (this.isNPC) {
-					void this.startNPCWanderLoop();
-				} else {
-					void this.startPetBehaviorLoop();
-				}
-			});
+		// Create the pet element synchronously so external code can access petEl immediately
+		const containerWidth = (this.container as HTMLElement).offsetWidth || 400;
+		const containerHeight = (this.container as HTMLElement).offsetHeight || 300;
+		const minX = containerWidth * 0.1;
+		const maxX = containerWidth * 0.9;
+		const minY = containerHeight * 0.1;
+		const maxY = containerHeight * 0.9;
+		this.currentX = Math.random() * (maxX - minX) + minX;
+		this.currentY = Math.random() * (maxY - minY) + minY;
+		this.petEl = this.createPetElement(petId);
+		this.setupHoverListeners();
+		void this.initializeSprite().then(() => {
+			void this.playAnimation("idle");
+			if (this.isNPC) {
+				void this.startNPCWanderLoop();
+			} else {
+				void this.startPetBehaviorLoop();
+			}
 		});
 	}
 
@@ -324,10 +323,6 @@ export class StardewPet {
 			activeWindow.clearTimeout(this.speechBubbleTimeout);
 			this.speechBubbleTimeout = null;
 		}
-	}
-
-	public updateVerticalPosition(_newBackground: string) {
-		this.petEl.setCssProps({ "--top": `${this.currentY}px` });
 	}
 
 	public async clampToContainer() {
