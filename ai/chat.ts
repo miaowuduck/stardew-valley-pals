@@ -1,5 +1,5 @@
 import OpenAI from "openai";
-import { StardewPersona } from "./pet-utils/stardew-species";
+import type { StardewPersona } from "../core/types";
 
 function buildPageRantPrompt(
 	pageLabel: string,

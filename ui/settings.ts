@@ -1,6 +1,6 @@
 import { PluginSettingTab, App, Setting, Notice } from "obsidian";
-import PetPlugin from "./main";
-import { initModel } from "./chatmodels";
+import PetPlugin from "../main";
+import { initModel } from "../ai/chat";
 
 function addLabeledSlider(
 	setting: Setting,

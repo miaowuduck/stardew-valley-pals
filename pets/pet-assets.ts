@@ -1,3 +1,4 @@
+import heartAssetPng from "../assets/misc/heart.png";
 import catSprite from "../assets/stardew/pets/cat.png";
 import chickenSprite from "../assets/stardew/pets/chicken.png";
 import cowSprite from "../assets/stardew/pets/cow.png";
@@ -62,4 +63,10 @@ export function getStardewBackgroundAsset(backgroundName: keyof typeof stardewBa
 		throw new Error(`Unknown Stardew background asset: ${backgroundName}`);
 	}
 	return asset;
+}
+
+export const heartAsset = heartAssetPng;
+
+export function getBackgroundAsset(backgroundName: string): string {
+	return getStardewBackgroundAsset(backgroundName as keyof typeof stardewBackgrounds);
 }

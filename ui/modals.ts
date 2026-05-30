@@ -1,11 +1,8 @@
 import { Modal, App } from "obsidian";
 
-// Type for selectable option
-export interface SelectorOption {
-	value: string;
-	label: string;
-	requiresName?: boolean;
-}
+import type { SelectorOption } from "../core/types";
+
+export type { SelectorOption };
 
 export class SelectorModal extends Modal {
 	options: SelectorOption[]; // Array of options

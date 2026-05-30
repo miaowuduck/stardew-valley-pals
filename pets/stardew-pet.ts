@@ -1,6 +1,7 @@
 import { Notice } from "obsidian";
 import { heartAsset } from "./pet-assets";
-import { getStardewSpeciesSprite, StardewAnimation, StardewSpeciesDefinition } from "./stardew-species";
+import { getStardewSpeciesSprite, isNpcSpeciesType } from "./stardew-species";
+import type { StardewAnimation, StardewSpeciesDefinition } from "./stardew-species";
 
 type AnimationState = StardewAnimation | StardewAnimation[];
 
@@ -55,7 +56,7 @@ export class StardewPet {
 		this.rightClickTextProvider = rightClickTextProvider;
 		this.speechEnabledProvider = speechEnabledProvider;
 		this.spritesheetUrl = getStardewSpeciesSprite(definition.id);
-		this.isNPC = definition.id.startsWith("stardew/npc/");
+		this.isNPC = isNpcSpeciesType(definition.id);
 
 		requestAnimationFrame(() => {
 			const containerWidth = (this.container as HTMLElement).offsetWidth || 400;

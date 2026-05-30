@@ -1,13 +1,16 @@
-import PetPlugin, { PetInstance } from "./main";
-import { RenderablePet, createRenderablePet } from "./pet-utils/pet-factory";
+import type PetPlugin from "../main";
+import type { PetInstance } from "../core/types";
+import { isNpcSpeciesType } from "../core/types";
+import { createRenderablePet } from "../pets/factory";
+import { createRantLoopScheduler } from "../ui/rant-loop";
 
 export class OverlayPetView {
 	private overlayEl: HTMLElement;
 	private plugin: PetPlugin;
-	pets: { id: string; type: string; pet: RenderablePet }[] = [];
+	pets: { id: string; type: string; pet: NonNullable<ReturnType<typeof createRenderablePet>> }[] = [];
 	private resizeHandler: () => void;
 	private resizeTimer: ReturnType<typeof setTimeout> | null = null;
-	private rantLoopTimeout: ReturnType<typeof activeWindow.setTimeout> | null = null;
+	private rantLoop: ReturnType<typeof createRantLoopScheduler> | null = null;
 
 	constructor(plugin: PetPlugin) {
 		this.plugin = plugin;
@@ -25,9 +28,8 @@ export class OverlayPetView {
 		window.addEventListener("resize", this.resizeHandler);
 	}
 
-	// Lowers the overlay bound to not cover Obsidian top drag region (Electron's drag region ignores pointer events)
 	private updateOverlayBounds() {
-		const selectors = [".titlebar", ".workspace-tab-header-container"]; // Need second selector for mac
+		const selectors = [".titlebar", ".workspace-tab-header-container"];
 		const candidates: HTMLElement[] = [];
 		for (const sel of selectors) {
 			candidates.push(...Array.from(activeDocument.body.querySelectorAll<HTMLElement>(sel)));
@@ -38,11 +40,11 @@ export class OverlayPetView {
 			const style = getComputedStyle(el);
 			const region =
 				style.getPropertyValue("-webkit-app-region") ||
-				(style as unknown as Record<string, string>)["webkitAppRegion"] ||
+				(style as unknown as Record<string, string>).webkitAppRegion ||
 				"";
 			if (region !== "drag") continue;
 			const rect = el.getBoundingClientRect();
-			if (rect.top > 5) continue; // Only elements pinned to the window top
+			if (rect.top > 5) continue;
 			if (rect.bottom > topOffset) topOffset = rect.bottom;
 		}
 
@@ -51,17 +53,19 @@ export class OverlayPetView {
 
 	addPet(singlePet: PetInstance) {
 		try {
-			const cleanPetId = singlePet.id.replace(/^pets\//, "");
 			const pet = createRenderablePet(
 				this.overlayEl,
 				singlePet.type,
 				"overlay",
-				cleanPetId,
+				singlePet.id.replace(/^pets\//, ""),
 				this.plugin.instanceData.petSize,
 				singlePet.name,
 				() => this.plugin.getPageRantText("rightclick", singlePet.type),
 				this.plugin.instanceData.petSpeed,
-				(isNPC: boolean) => isNPC ? (this.plugin.instanceData.npcSpeechEnabled ?? true) : (this.plugin.instanceData.petSpeechEnabled ?? true),
+				(isNPC: boolean) =>
+					isNPC
+						? (this.plugin.instanceData.npcSpeechEnabled ?? true)
+						: (this.plugin.instanceData.petSpeechEnabled ?? true),
 			);
 			if (pet) {
 				this.pets.push({ id: singlePet.id, type: singlePet.type, pet });
@@ -89,9 +93,7 @@ export class OverlayPetView {
 	updatePetSize() {
 		for (const { pet } of this.pets) {
 			pet.scale = this.plugin.instanceData.petSize;
-			pet.petEl?.setCssProps({
-				"--scale": `${this.plugin.instanceData.petSize}`,
-			});
+			pet.petEl?.setCssProps({ "--scale": `${this.plugin.instanceData.petSize}` });
 		}
 	}
 
@@ -107,10 +109,8 @@ export class OverlayPetView {
 			activeWindow.clearTimeout(this.resizeTimer);
 			this.resizeTimer = null;
 		}
-		if (this.rantLoopTimeout !== null) {
-			activeWindow.clearTimeout(this.rantLoopTimeout);
-			this.rantLoopTimeout = null;
-		}
+		this.rantLoop?.stop();
+		this.rantLoop = null;
 		for (const { pet } of this.pets) {
 			void pet.destroy();
 		}
@@ -118,43 +118,36 @@ export class OverlayPetView {
 	}
 
 	startRantLoop() {
-		const scheduleNext = () => {
-			const minMinutes = Math.min(
-				this.plugin.instanceData.pageRantMinMinutes || 5,
-				this.plugin.instanceData.pageRantMaxMinutes || 20
-			);
-			const maxMinutes = Math.max(
-				this.plugin.instanceData.pageRantMinMinutes || 5,
-				this.plugin.instanceData.pageRantMaxMinutes || 20
-			);
-			const minMs = minMinutes * 60 * 1000;
-			const maxMs = maxMinutes * 60 * 1000;
-			const delay = Math.floor(Math.random() * (maxMs - minMs + 1)) + minMs;
-
-			this.rantLoopTimeout = activeWindow.setTimeout(() => {
-				if (this.plugin.instanceData.pageRantEnabled) {
-					// If configured, suppress rants when Obsidian window is not focused/backgrounded
-					if (this.plugin.instanceData.pageRantOnlyWhenFocused && !activeDocument.hasFocus()) {
-						scheduleNext();
-						return;
-					}
-					const target = this.pets[Math.floor(Math.random() * this.pets.length)];
-					if (target) {
-						const isNPC = target.type.startsWith("stardew/npc/");
-						const speechEnabled = isNPC ? (this.plugin.instanceData.npcSpeechEnabled ?? true) : (this.plugin.instanceData.petSpeechEnabled ?? true);
-						if (speechEnabled) {
-							void this.plugin.getPageRantText("timer", target.type).then((text) => {
-								if (text) {
-									target.pet.showSpeechBubble(text);
-								}
-							});
-						}
-					}
-				}
-				scheduleNext();
-			}, delay);
-		};
-
-		scheduleNext();
+		this.rantLoop = createRantLoopScheduler({
+			isEnabled: () => this.plugin.instanceData.pageRantEnabled,
+			onlyWhenFocused: () => this.plugin.instanceData.pageRantOnlyWhenFocused ?? true,
+			getMinMs: () => {
+				const minMinutes = Math.min(
+					this.plugin.instanceData.pageRantMinMinutes || 5,
+					this.plugin.instanceData.pageRantMaxMinutes || 20,
+				);
+				return minMinutes * 60 * 1000;
+			},
+			getMaxMs: () => {
+				const maxMinutes = Math.max(
+					this.plugin.instanceData.pageRantMinMinutes || 5,
+					this.plugin.instanceData.pageRantMaxMinutes || 20,
+				);
+				return maxMinutes * 60 * 1000;
+			},
+			getTargets: () =>
+				this.pets.map((p) => ({
+					type: p.type,
+					showSpeechBubble: (text: string) => p.pet.showSpeechBubble(text),
+				})),
+			getRantText: (type: string) => this.plugin.getPageRantText("timer", type),
+			isSpeechEnabled: (type: string) => {
+				const isNPC = isNpcSpeciesType(type);
+				return isNPC
+					? (this.plugin.instanceData.npcSpeechEnabled ?? true)
+					: (this.plugin.instanceData.petSpeechEnabled ?? true);
+			},
+		});
+		this.rantLoop.start();
 	}
 }

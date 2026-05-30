@@ -1,36 +1,21 @@
-import { SelectorOption } from "../modals";
-import { getStardewPetAsset, StardewPetSpriteKey } from "./stardew-pet-assets";
-import { getStardewNpcAsset } from "./stardew-npc-assets";
+import type {
+	SelectorOption,
+	StardewFrame,
+	StardewAnimation,
+	StardewPersona,
+	StardewSpeciesDefinition,
+} from "../core/types";
+import { NPC_TYPE_PREFIX, isNpcSpeciesType } from "../core/types";
+import { getStardewPetAsset, StardewPetSpriteKey } from "./pet-assets";
+import { getStardewNpcAsset } from "./npc-assets";
 
-export type StardewFrame = [number, number];
-
-export type StardewAnimation = {
-	frames: StardewFrame[];
-	fps: number;
-	loop?: boolean;
-	flip?: boolean;
+export type {
+	StardewFrame,
+	StardewAnimation,
+	StardewPersona,
+	StardewSpeciesDefinition,
 };
-
-export type StardewPersona = {
-	identity: string;
-	temperament: string;
-	rantStyle: string;
-};
-
-export type StardewSpeciesDefinition = {
-	id: string;
-	label: string;
-	sprite: string;
-	frameSize?: number;
-	frameWidth?: number;
-	frameHeight?: number;
-	scale: number;
-	moveDist: number;
-	animations: Record<string, StardewAnimation | StardewAnimation[]>;
-	persona: StardewPersona;
-	/** 在精灵图中的变体偏移量（以 frame 为单位） */
-	variantOffset?: [number, number];
-};
+export { NPC_TYPE_PREFIX, isNpcSpeciesType };
 
 function A(frames: StardewFrame[], fps: number, options: { loop?: boolean; flip?: boolean } = {}): StardewAnimation {
 	return { frames, fps, ...options };
@@ -379,7 +364,7 @@ const npcAnimations: StardewSpeciesDefinition["animations"] = {
 
 function N(name: string, persona: StardewPersona): StardewSpeciesDefinition {
 	return {
-		id: `stardew/npc/${name}`,
+		id: `${NPC_TYPE_PREFIX}${name}`,
 		label: name,
 		sprite: name,
 		frameWidth: 16,
@@ -641,7 +626,7 @@ export function getStardewSpeciesSprite(type: string): string {
 	if (!species) {
 		throw new Error(`Unknown Stardew species: ${type}`);
 	}
-	if (type.startsWith("stardew/npc/")) {
+	if (isNpcSpeciesType(type)) {
 		return getStardewNpcAsset(species.sprite);
 	}
 	return getStardewPetAsset(species.sprite as StardewPetSpriteKey);
