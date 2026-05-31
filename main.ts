@@ -18,6 +18,7 @@ export default class PetPlugin extends Plugin {
 	private recentActivity: { ts: number; type: "modify" | "create" | "open"; path: string }[] = [];
 	private chatmodel: OpenAI | null = null;
 	private overlayView: OverlayPetView | null = null;
+	private lastMarkdownView: MarkdownView | null = null;
 	protected readonly PETS: SelectorOption[] = STARDEW_SPECIES_OPTIONS;
 	protected readonly BACKGROUNDS: SelectorOption[] = BACKGROUNDS;
 
@@ -147,9 +148,15 @@ export default class PetPlugin extends Plugin {
 			this.app.vault.on("create", (file) => this.recordActivity("create", file.path)),
 		);
 		this.registerEvent(
-			this.app.workspace.on("active-leaf-change", () => {
+			this.app.workspace.on("active-leaf-change", (leaf) => {
 				const activeFile = this.app.workspace.getActiveFile();
 				if (activeFile) this.recordActivity("open", activeFile.path);
+
+				// Track last active MarkdownView so we can read selection
+				// even after focus moves to a non-editor leaf (e.g. pet-view).
+				if (leaf?.view instanceof MarkdownView) {
+					this.lastMarkdownView = leaf.view;
+				}
 			}),
 		);
 	}
@@ -248,9 +255,14 @@ export default class PetPlugin extends Plugin {
 		const pageLabel = this.getCurrentPageLabel();
 		const isNPC = petType ? isNpcSpeciesType(petType) : false;
 
-		// Capture selected text or caret vicinity
+		// Capture selected text or caret vicinity.
+		// When the pet lives in a sidebar leaf (PetView), right-clicking it
+		// switches the active leaf away from the editor, so we fall back to
+		// the last known MarkdownView tracked via active-leaf-change.
 		let selectedText = "";
-		const mdView = this.app.workspace.getActiveViewOfType(MarkdownView);
+		const mdView =
+			this.app.workspace.getActiveViewOfType(MarkdownView) ??
+			this.lastMarkdownView;
 		if (mdView) {
 			try {
 				const editor = (mdView as { editor?: { getSelection?: () => string; getCursor?: () => { line: number }; getLine?: (n: number) => string } }).editor;
