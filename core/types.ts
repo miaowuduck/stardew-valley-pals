@@ -13,7 +13,7 @@ export interface PetPluginData {
 	petSize: number;
 	petSpeed: number;
 	overlayMode: boolean;
-	openAiApiKey: string;
+	openAiApiKey: string;   // SecretStorage name, not the raw key
 	openAiBaseUrl: string;
 	pageRantEnabled: boolean;
 	pageRantMinMinutes: number;

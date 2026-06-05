@@ -1,4 +1,4 @@
-import { Plugin, Notice, WorkspaceLeaf, MarkdownView, Modal, Setting } from "obsidian";
+import { Plugin, Notice, WorkspaceLeaf, MarkdownView, ConfirmationModal } from "obsidian";
 import type { PetInstance, PetPluginData, SelectorOption } from "./core/types";
 import { isNpcSpeciesType } from "./core/types";
 import { DEFAULT_DATA, BACKGROUNDS, LEGACY_BACKGROUND_MAP, NEW_NOTE_MESSAGES, getFallbackRantText } from "./core/constants";
@@ -127,9 +127,12 @@ export default class PetPlugin extends Plugin {
 
 	private initChatModel() {
 		if (!this.instanceData.selectedModel || this.instanceData.selectedModel === "none") return;
+		const keyName = this.instanceData.openAiApiKey?.trim();
+		const key = keyName ? this.app.secretStorage.getSecret(keyName) : null;
+		if (!key) return;
 		try {
 			this.chatmodel = initModel(
-				this.instanceData.openAiApiKey,
+				key,
 				this.instanceData.openAiBaseUrl,
 			);
 		} catch (e) {
@@ -324,25 +327,14 @@ export default class PetPlugin extends Plugin {
 			id: "clear-all-pets",
 			name: "Remove all pets",
 			callback: () => {
-				const modal = new Modal(this.app);
-				modal.titleEl.setText("Remove all pets?");
-				modal.contentEl.createEl("p", {
-					text: "This will remove every pet and NPC from your vault. This action cannot be undone. Continue?",
-				});
-				new Setting(modal.contentEl)
-					.addButton((btn) =>
-						btn.setButtonText("Cancel").onClick(() => modal.close())
-					)
-					.addButton((btn) =>
-						btn.setButtonText("Remove all")
-							.setWarning()
-							.onClick(async () => {
-								modal.close();
-								await this.clearAllPets();
-								new Notice("All pets have been removed.");
-							})
-					);
-				modal.open();
+				new ConfirmationModal(this.app, {
+					title: "Remove all pets?",
+					body: "This will remove every pet and NPC from your vault. This action cannot be undone. Continue?",
+					onConfirm: async () => {
+						await this.clearAllPets();
+						new Notice("All pets have been removed.");
+					},
+				}).open();
 			},
 		});
 		this.addCommand({
@@ -558,13 +550,15 @@ export default class PetPlugin extends Plugin {
 		void this.saveData(this.instanceData);
 
 		try {
-			if (!this.instanceData.openAiApiKey) {
-				new Notice("Set your OpenAI API key first.");
+			const keyName = this.instanceData.openAiApiKey?.trim();
+			const key = keyName ? this.app.secretStorage.getSecret(keyName) : null;
+			if (!key) {
+				new Notice("Select an API key secret in settings first.");
 				this.chatmodel = null;
 				return;
 			}
 			this.chatmodel = initModel(
-				this.instanceData.openAiApiKey,
+				key,
 				this.instanceData.openAiBaseUrl,
 			);
 			new Notice(`Model set to ${this.instanceData.selectedModel}.`);

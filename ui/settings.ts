@@ -1,4 +1,4 @@
-import { PluginSettingTab, App, Setting, Notice, Modal } from "obsidian";
+import { PluginSettingTab, App, Setting, Notice, ConfirmationModal, SecretComponent } from "obsidian";
 import PetPlugin from "../main";
 import { initModel } from "../ai/chat";
 import { getStardewSpeciesDefinition } from "../pets/stardew-species";
@@ -170,25 +170,14 @@ export class PetSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName("OpenAI API key")
-			.setDesc("Your API key for OpenAI, DeepSeek, or another OpenAI-compatible provider.")
-			.addText((text) => {
-				text.setValue(this.plugin.instanceData.openAiApiKey || "")
+			.setDesc("Select a secret from SecretStorage for your OpenAI, DeepSeek, or compatible provider.")
+			.addComponent((el) =>
+				new SecretComponent(this.app, el)
+					.setValue(this.plugin.instanceData.openAiApiKey || "")
 					.onChange(async (value) => {
 						this.plugin.updateOpenAiApiKey(value);
-					});
-				text.inputEl.type = "password";
-				text.inputEl.setAttribute("autocomplete", "off");
-			})
-			.addExtraButton((btn) => {
-				btn.setIcon("eye")
-					.setTooltip("Show/hide API key")
-					.onClick(() => {
-						const input = btn.extraSettingsEl.parentElement?.querySelector("input") as HTMLInputElement;
-						if (input) {
-							input.type = input.type === "password" ? "text" : "password";
-						}
-					});
-			});
+					})
+			);
 
 		new Setting(containerEl)
 			.setName("API endpoint")
@@ -226,12 +215,13 @@ export class PetSettingTab extends PluginSettingTab {
 			.setDesc("Send a minimal request to verify your API key, endpoint, and model are configured correctly.")
 			.addButton((button) => {
 				button.setButtonText("Test").onClick(async () => {
-					const key = this.plugin.instanceData.openAiApiKey?.trim();
+					const keyName = this.plugin.instanceData.openAiApiKey?.trim();
+					const key = keyName ? this.app.secretStorage.getSecret(keyName) : null;
 					const baseUrl = this.plugin.instanceData.openAiBaseUrl?.trim();
 					const model = this.plugin.instanceData.selectedModel?.trim();
 
 					if (!key) {
-						new Notice("Please enter an API key first.", 5000);
+						new Notice("Please select an API key secret first.", 5000);
 						return;
 					}
 					if (!baseUrl) {
@@ -385,27 +375,16 @@ export class PetSettingTab extends PluginSettingTab {
 				button.setButtonText("Reset to defaults")
 					.setWarning()
 					.onClick(() => {
-						const modal = new Modal(this.app);
-						modal.titleEl.setText("Reset settings to defaults?");
-						modal.contentEl.createEl("p", {
-							text: "This restores every setting to its original value. Your pets will not be affected. Continue?",
-						});
-						new Setting(modal.contentEl)
-							.addButton((btn) =>
-								btn.setButtonText("Cancel").onClick(() => modal.close())
-							)
-							.addButton((btn) =>
-								btn.setButtonText("Reset")
-									.setWarning()
-									.onClick(async () => {
-										modal.close();
-										Object.assign(this.plugin.instanceData, DEFAULT_DATA);
-										await this.plugin.saveData(this.plugin.instanceData);
-										this.display();
-										new Notice("Settings have been reset to defaults.");
-									})
-							);
-						modal.open();
+						new ConfirmationModal(this.app, {
+							title: "Reset settings to defaults?",
+							body: "This restores every setting to its original value. Your pets will not be affected. Continue?",
+							onConfirm: async () => {
+								Object.assign(this.plugin.instanceData, DEFAULT_DATA);
+								await this.plugin.saveData(this.plugin.instanceData);
+								this.display();
+								new Notice("Settings have been reset to defaults.");
+							},
+						}).open();
 					});
 			});
 	}
