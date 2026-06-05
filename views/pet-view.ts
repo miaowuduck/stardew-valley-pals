@@ -30,7 +30,7 @@ export class PetView extends ItemView {
 	}
 
 	getIcon() {
-		return "leaf";
+		return "";
 	}
 
 	async onOpen() {
@@ -38,6 +38,14 @@ export class PetView extends ItemView {
 			activeWindow.setTimeout(() => this.leaf.detach(), 0);
 			return;
 		}
+
+		// Hide headers for a clean pet panel
+		const viewHeader = this.containerEl.querySelector(".view-header") as HTMLElement | null;
+		if (viewHeader) viewHeader.style.display = "none";
+
+		const tabsEl = this.containerEl.closest(".workspace-tabs") as HTMLElement | null;
+		const tabHeaderContainer = tabsEl?.querySelector(":scope > .workspace-tab-header-container") as HTMLElement | null;
+		if (tabHeaderContainer) tabHeaderContainer.style.display = "none";
 
 		this.updateView();
 		this.setupResizeObserver();

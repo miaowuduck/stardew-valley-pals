@@ -47,6 +47,12 @@ export class OverlayPetView {
 			if (rect.bottom > topOffset) topOffset = rect.bottom;
 		}
 
+		// Incorporate macOS traffic light offset (since Obsidian 1.12.0)
+		const trafficY = parseFloat(
+			getComputedStyle(document.body).getPropertyValue("--traffic-lights-offset-y")
+		) || 0;
+		if (trafficY > topOffset) topOffset = trafficY;
+
 		this.overlayEl.setCssProps({ "--overlay-top": `${topOffset}px` });
 	}
 

@@ -33,9 +33,36 @@
 
 /* ------------- Pet View Styles ------------- */
 
-/* Hide the default Obsidian view header (redundant menu bar) in panel mode */
-.pet-view .view-header {
-	display: none;
+/* Remove all Obsidian chrome around the pet panel for a seamless look */
+
+/* Hide the tab bar (icon + title strip at top) */
+.workspace-tabs:has(.workspace-leaf-content[data-type="pet-view"]) > .workspace-tab-header-container {
+	display: none !important;
+}
+
+/* Remove borders / gaps left behind by the hidden tab bar */
+.workspace-tabs:has(.workspace-leaf-content[data-type="pet-view"]) > .workspace-tab-container {
+	border-top: none !important;
+	margin-top: 0 !important;
+	padding-top: 0 !important;
+}
+
+/* Hide the inner view header */
+.workspace-leaf-content[data-type="pet-view"] > .view-header {
+	display: none !important;
+}
+
+/* Make the view content stretch edge-to-edge */
+.workspace-leaf-content[data-type="pet-view"] {
+	margin: 0 !important;
+	padding: 0 !important;
+	border: none !important;
+}
+
+.workspace-leaf-content[data-type="pet-view"] > .view-content {
+	height: 100% !important;
+	margin: 0 !important;
+	padding: 0 !important;
 }
 
 .pet-view-wrapper {
@@ -235,10 +262,10 @@
 	max-width: min(420px, 80vw);
 	padding: 0.45rem 1.1rem;
 	border-radius: 8px 16px 8px 16px;
-	background: color-mix(in srgb, var(--background-primary) 92%, transparent);
+	background: color-mix(in oklch, var(--background-primary) 92%, transparent);
 	color: var(--text-normal);
 	border: 1px solid var(--background-modifier-border);
-	box-shadow: 0 10px 22px color-mix(in srgb, black 18%, transparent);
+	box-shadow: 0 10px 22px color-mix(in oklch, black 18%, transparent);
 	font-size: 0.88rem;
 	line-height: 1.5;
 	white-space: normal;

@@ -1,4 +1,4 @@
-import { PluginSettingTab, App, Setting, Notice } from "obsidian";
+import { PluginSettingTab, App, Setting, Notice, Modal } from "obsidian";
 import PetPlugin from "../main";
 import { initModel } from "../ai/chat";
 import { getStardewSpeciesDefinition } from "../pets/stardew-species";
