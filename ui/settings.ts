@@ -384,11 +384,28 @@ export class PetSettingTab extends PluginSettingTab {
 			.addButton((button) => {
 				button.setButtonText("Reset to defaults")
 					.setWarning()
-					.onClick(async () => {
-						Object.assign(this.plugin.instanceData, DEFAULT_DATA);
-						await this.plugin.saveData(this.plugin.instanceData);
-						this.display();
-						new Notice("Settings have been reset to defaults.");
+					.onClick(() => {
+						const modal = new Modal(this.app);
+						modal.titleEl.setText("Reset settings to defaults?");
+						modal.contentEl.createEl("p", {
+							text: "This restores every setting to its original value. Your pets will not be affected. Continue?",
+						});
+						new Setting(modal.contentEl)
+							.addButton((btn) =>
+								btn.setButtonText("Cancel").onClick(() => modal.close())
+							)
+							.addButton((btn) =>
+								btn.setButtonText("Reset")
+									.setWarning()
+									.onClick(async () => {
+										modal.close();
+										Object.assign(this.plugin.instanceData, DEFAULT_DATA);
+										await this.plugin.saveData(this.plugin.instanceData);
+										this.display();
+										new Notice("Settings have been reset to defaults.");
+									})
+							);
+						modal.open();
 					});
 			});
 	}

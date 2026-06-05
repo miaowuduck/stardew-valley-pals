@@ -1,4 +1,4 @@
-import { Plugin, Notice, WorkspaceLeaf, MarkdownView } from "obsidian";
+import { Plugin, Notice, WorkspaceLeaf, MarkdownView, Modal, Setting } from "obsidian";
 import type { PetInstance, PetPluginData, SelectorOption } from "./core/types";
 import { isNpcSpeciesType } from "./core/types";
 import { DEFAULT_DATA, BACKGROUNDS, LEGACY_BACKGROUND_MAP, NEW_NOTE_MESSAGES, getFallbackRantText } from "./core/constants";
@@ -323,7 +323,27 @@ export default class PetPlugin extends Plugin {
 		this.addCommand({
 			id: "clear-all-pets",
 			name: "Remove all pets",
-			callback: async () => { await this.clearAllPets(); },
+			callback: () => {
+				const modal = new Modal(this.app);
+				modal.titleEl.setText("Remove all pets?");
+				modal.contentEl.createEl("p", {
+					text: "This will remove every pet and NPC from your vault. This action cannot be undone. Continue?",
+				});
+				new Setting(modal.contentEl)
+					.addButton((btn) =>
+						btn.setButtonText("Cancel").onClick(() => modal.close())
+					)
+					.addButton((btn) =>
+						btn.setButtonText("Remove all")
+							.setWarning()
+							.onClick(async () => {
+								modal.close();
+								await this.clearAllPets();
+								new Notice("All pets have been removed.");
+							})
+					);
+				modal.open();
+			},
 		});
 		this.addCommand({
 			id: "remove-pet-by-id",
