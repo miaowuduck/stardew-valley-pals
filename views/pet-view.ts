@@ -39,10 +39,6 @@ export class PetView extends ItemView {
 			return;
 		}
 
-		this.addAction("plus", "Add a pet", () => {
-			this.plugin.showAddPetCommand();
-		});
-
 		this.updateView();
 		this.setupResizeObserver();
 		this.startRantLoop();
@@ -105,7 +101,7 @@ export class PetView extends ItemView {
 				emptyState.createDiv({ cls: "pet-empty-state-title", text: "No pets yet!" });
 				emptyState.createDiv({
 					cls: "pet-empty-state-desc",
-					text: 'Click the + button in the header or use the "Add a pet" command to bring in your first companion.',
+					text: 'Use the ribbon icon or the "Add a pet" command to bring in your first companion.',
 				});
 				const addButton = emptyState.createEl("button", {
 					cls: "pet-empty-state-button",

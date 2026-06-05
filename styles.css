@@ -33,6 +33,11 @@
 
 /* ------------- Pet View Styles ------------- */
 
+/* Hide the default Obsidian view header (redundant menu bar) in panel mode */
+.pet-view .view-header {
+	display: none;
+}
+
 .pet-view-wrapper {
 	position: relative;
 	width: 100%;
