@@ -121,7 +121,7 @@ Requirements:
 
 function cleanSingleLine(text: string): string {
 	return text
-		.replace(/^[\s>*`"'【\[]+/, "")
+		.replace(/^[\s>*`"'【[]+/, "")
 		.replace(/[\s>*`"'】\]]+$/, "")
 		.split(/\r?\n/)
 		.map((line) => line.trim())
@@ -153,8 +153,8 @@ export async function generatePageRantText(
 			messages: [{ role: "user", content: prompt }],
 		});
 		return cleanSingleLine(response.choices[0].message.content || "");
-	} catch (e: any) {
-		const msg = e?.message || String(e);
+	} catch (e: unknown) {
+		const msg = (e as { message?: string })?.message || String(e);
 		console.error("Page rant generation failed:", e);
 		throw new Error(`AI 模型调用失败: ${msg}`);
 	}

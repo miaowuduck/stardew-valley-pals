@@ -1,4 +1,3 @@
-import { isNpcSpeciesType } from "../core/types";
 import type PetPlugin from "../main";
 
 // ── Types ──────────────────────────────────────────────────────
@@ -35,7 +34,7 @@ interface RantLoopOptions {
  * Used by both the panel (PetView) and overlay (OverlayPetView) views.
  */
 export function createRantLoopScheduler(opts: RantLoopOptions) {
-	let timeoutId: ReturnType<typeof activeWindow.setTimeout> | null = null;
+	let timeoutId: ReturnType<typeof window.setTimeout> | null = null;
 	let stopped = false;
 
 	function scheduleNext() {
@@ -45,7 +44,7 @@ export function createRantLoopScheduler(opts: RantLoopOptions) {
 		const maxMs = Math.max(minMs, opts.getMaxMs());
 		const delay = Math.floor(Math.random() * (maxMs - minMs + 1)) + minMs;
 
-		timeoutId = activeWindow.setTimeout(() => {
+		timeoutId = window.setTimeout(() => {
 			if (stopped) return;
 
 			if (opts.isEnabled()) {
@@ -75,7 +74,7 @@ export function createRantLoopScheduler(opts: RantLoopOptions) {
 		stop() {
 			stopped = true;
 			if (timeoutId !== null) {
-				activeWindow.clearTimeout(timeoutId);
+				window.clearTimeout(timeoutId);
 				timeoutId = null;
 			}
 		},

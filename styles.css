@@ -35,21 +35,17 @@
 
 /* Remove all Obsidian chrome around the pet panel for a seamless look */
 
-/* Hide the tab bar (icon + title strip at top) */
-.workspace-tabs:has(.workspace-leaf-content[data-type="pet-view"]) > .workspace-tab-header-container {
-	display: none !important;
+/* Class-based header hiding (applied via JS) */
+.pet-view-header-hidden,
+.pet-view-tab-header-hidden {
+	display: none;
 }
 
 /* Remove borders / gaps left behind by the hidden tab bar */
-.workspace-tabs:has(.workspace-leaf-content[data-type="pet-view"]) > .workspace-tab-container {
-	border-top: none !important;
-	margin-top: 0 !important;
-	padding-top: 0 !important;
-}
-
-/* Hide the inner view header */
-.workspace-leaf-content[data-type="pet-view"] > .view-header {
-	display: none !important;
+.pet-view-tab-container-clean {
+	border-top: none;
+	margin-top: 0;
+	padding-top: 0;
 }
 
 /* Make the view content stretch edge-to-edge */
@@ -167,11 +163,12 @@
 }
 
 /* Dragging state — lifted off the ground with drop-shadow and slight scale-up */
-.pet.pet-dragging {
-	z-index: 9999 !important;
+.pet-view-wrapper .pet.pet-dragging,
+.pet-overlay-container .pet.pet-dragging {
+	z-index: 9999;
 	filter: drop-shadow(0 8px 12px rgba(0, 0, 0, 0.35));
 	transform: translate(-50%, -50%) scale(var(--scale, 1)) scaleX(var(--scale-x, 1)) scale(1.12);
-	transition: none !important;
+	transition: none;
 	cursor: grabbing;
 }
 
@@ -253,6 +250,11 @@
    top are set as inline px styles by JS.  A BEM modifier
    class controls which edge the arrow sits on.
    ─────────────────────────────────────────────────────────── */
+
+/* Measuring state — hidden while we compute layout */
+.pet-speech-bubble--measuring {
+	visibility: hidden;
+}
 
 .pet-speech-bubble {
 	position: absolute;

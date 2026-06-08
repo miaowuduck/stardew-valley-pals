@@ -4,7 +4,7 @@ import type { SelectorOption } from "../core/types";
 export class SelectorModal extends Modal {
 	options: SelectorOption[];
 	onSubmit: (value: string, name: string) => Promise<void>;
-	private animationTimers: ReturnType<typeof activeWindow.setInterval>[] = [];
+	private animationTimers: ReturnType<typeof window.setInterval>[] = [];
 
 	constructor(
 		app: App,
@@ -89,7 +89,7 @@ export class SelectorModal extends Modal {
 					// Start walking animation loop
 					let frameIndex = 0;
 					const interval = Math.max(16, Math.floor(1000 / sd.fps));
-					const timer = activeWindow.setInterval(() => {
+					const timer = window.setInterval(() => {
 						frameIndex = (frameIndex + 1) % sd.moveFrames.length;
 						const [fx, fy] = sd.moveFrames[frameIndex];
 						const px = -((fx + ox) * sd.frameWidth) * sd.scale;
@@ -180,7 +180,7 @@ export class SelectorModal extends Modal {
 
 	private clearAnimationTimers() {
 		for (const timer of this.animationTimers) {
-			activeWindow.clearInterval(timer);
+			window.clearInterval(timer);
 		}
 		this.animationTimers = [];
 	}

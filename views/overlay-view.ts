@@ -17,8 +17,8 @@ export class OverlayPetView {
 		this.updateOverlayBounds();
 
 		this.resizeHandler = () => {
-			if (this.resizeTimer !== null) activeWindow.clearTimeout(this.resizeTimer);
-			this.resizeTimer = activeWindow.setTimeout(async () => {
+			if (this.resizeTimer !== null) window.clearTimeout(this.resizeTimer);
+			this.resizeTimer = window.setTimeout(async () => {
 				this.resizeTimer = null;
 				this.updateOverlayBounds();
 				await Promise.all(this.pets.map(({ pet }) => pet.clampToContainer()));
@@ -49,7 +49,7 @@ export class OverlayPetView {
 
 		// Incorporate macOS traffic light offset (since Obsidian 1.12.0)
 		const trafficY = parseFloat(
-			getComputedStyle(document.body).getPropertyValue("--traffic-lights-offset-y")
+			getComputedStyle(activeDocument.body).getPropertyValue("--traffic-lights-offset-y")
 		) || 0;
 		if (trafficY > topOffset) topOffset = trafficY;
 
@@ -108,7 +108,7 @@ export class OverlayPetView {
 	destroy() {
 		window.removeEventListener("resize", this.resizeHandler);
 		if (this.resizeTimer !== null) {
-			activeWindow.clearTimeout(this.resizeTimer);
+			window.clearTimeout(this.resizeTimer);
 			this.resizeTimer = null;
 		}
 		this.rantLoop?.stop();

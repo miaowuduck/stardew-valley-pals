@@ -95,9 +95,9 @@ export default class PetPlugin extends Plugin {
 	// ── Settings persistence ───────────────────────────────────
 
 	async loadSettings() {
-		const raw = await this.loadData() ?? {};
+		const raw: Record<string, unknown> = await this.loadData() ?? {};
 		// Clean up stale fields from removed features
-		delete raw.animatedBackground;
+		delete (raw as { animatedBackground?: unknown }).animatedBackground;
 		this.instanceData = Object.assign({}, DEFAULT_DATA, raw) as PetPluginData;
 
 		// Migrate legacy background IDs
@@ -369,7 +369,7 @@ export default class PetPlugin extends Plugin {
 			if (onComplete) {
 				// Defer to the next macrotask so the modal has time to close
 				// before the caller refreshes UI that sits behind the modal.
-				activeWindow.setTimeout(() => onComplete(), 0);
+				window.setTimeout(() => onComplete(), 0);
 			}
 		}).open();
 	}

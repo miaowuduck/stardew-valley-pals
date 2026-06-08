@@ -35,17 +35,19 @@ export class PetView extends ItemView {
 
 	async onOpen() {
 		if (this.plugin.instanceData.overlayMode) {
-			activeWindow.setTimeout(() => this.leaf.detach(), 0);
+			window.setTimeout(() => this.leaf.detach(), 0);
 			return;
 		}
 
 		// Hide headers for a clean pet panel
 		const viewHeader = this.containerEl.querySelector(".view-header") as HTMLElement | null;
-		if (viewHeader) viewHeader.style.display = "none";
+		if (viewHeader) viewHeader.addClass("pet-view-header-hidden");
 
 		const tabsEl = this.containerEl.closest(".workspace-tabs") as HTMLElement | null;
 		const tabHeaderContainer = tabsEl?.querySelector(":scope > .workspace-tab-header-container") as HTMLElement | null;
-		if (tabHeaderContainer) tabHeaderContainer.style.display = "none";
+		if (tabHeaderContainer) tabHeaderContainer.addClass("pet-view-tab-header-hidden");
+		const tabContainer = tabsEl?.querySelector(":scope > .workspace-tab-container") as HTMLElement | null;
+		if (tabContainer) tabContainer.addClass("pet-view-tab-container-clean");
 
 		this.updateView();
 		this.setupResizeObserver();
@@ -213,9 +215,9 @@ export class PetView extends ItemView {
 			lastHeight = height;
 
 			if (this.resizeTimeout !== undefined) {
-				activeWindow.clearTimeout(this.resizeTimeout);
+				window.clearTimeout(this.resizeTimeout);
 			}
-			this.resizeTimeout = activeWindow.setTimeout(() => {
+			this.resizeTimeout = window.setTimeout(() => {
 				this.resizeTimeout = undefined;
 				this.resetPets();
 			}, 250);
@@ -229,7 +231,7 @@ export class PetView extends ItemView {
 			this.resizeObserver = undefined;
 		}
 		if (this.resizeTimeout !== undefined) {
-			activeWindow.clearTimeout(this.resizeTimeout);
+			window.clearTimeout(this.resizeTimeout);
 			this.resizeTimeout = undefined;
 		}
 		this.rantLoop?.stop();

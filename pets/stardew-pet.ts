@@ -1,10 +1,10 @@
 import { Notice } from "obsidian";
 import { heartAsset } from "./pet-assets";
 import { getStardewSpeciesSprite, isNpcSpeciesType, toAnimation } from "./stardew-species";
-import type { StardewAnimation, StardewSpeciesDefinition } from "./stardew-species";
+import type { StardewSpeciesDefinition } from "./stardew-species";
 
 function wait(ms: number): Promise<void> {
-	return new Promise((resolve) => activeWindow.setTimeout(resolve, ms));
+	return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
 export class StardewPet {
@@ -17,10 +17,10 @@ export class StardewPet {
 	private currentY!: number;
 	private direction = 1;
 	private isDestroyed = false;
-	private animationTimer: ReturnType<typeof activeWindow.setInterval> | null = null;
+	private animationTimer: ReturnType<typeof window.setInterval> | null = null;
 	private currentAnimName: string | null = null;
 	private speechBubbleEl: HTMLElement | null = null;
-	private speechBubbleTimeout: ReturnType<typeof activeWindow.setTimeout> | null = null;
+	private speechBubbleTimeout: ReturnType<typeof window.setTimeout> | null = null;
 	private actionLoopPaused = false;
 	private readonly spritesheetUrl: string;
 	private readonly definition: StardewSpeciesDefinition;
@@ -151,7 +151,7 @@ export class StardewPet {
 		if (name === this.currentAnimName) return;
 
 		if (this.animationTimer !== null) {
-			activeWindow.clearInterval(this.animationTimer);
+			window.clearInterval(this.animationTimer);
 			this.animationTimer = null;
 		}
 
@@ -160,10 +160,10 @@ export class StardewPet {
 
 		let frameIndex = 0;
 		const interval = Math.max(16, Math.floor(1000 / animation.fps));
-		this.animationTimer = activeWindow.setInterval(() => {
+		this.animationTimer = window.setInterval(() => {
 			if (this.isDestroyed) {
 				if (this.animationTimer !== null) {
-					activeWindow.clearInterval(this.animationTimer);
+					window.clearInterval(this.animationTimer);
 					this.animationTimer = null;
 				}
 				return;
@@ -173,7 +173,7 @@ export class StardewPet {
 			if (frameIndex >= animation.frames.length) {
 				if (animation.loop === false) {
 					if (this.animationTimer !== null) {
-						activeWindow.clearInterval(this.animationTimer);
+						window.clearInterval(this.animationTimer);
 						this.animationTimer = null;
 					}
 					this.currentAnimName = null;
@@ -281,8 +281,8 @@ export class StardewPet {
 		};
 
 		const onMouseUp = () => {
-			document.removeEventListener("mousemove", onMouseMove);
-			document.removeEventListener("mouseup", onMouseUp);
+			activeDocument.removeEventListener("mousemove", onMouseMove);
+			activeDocument.removeEventListener("mouseup", onMouseUp);
 
 			if (hasDragged) {
 				this.petEl.removeClass("pet-dragging");
@@ -293,15 +293,15 @@ export class StardewPet {
 			}
 		};
 
-		document.addEventListener("mousemove", onMouseMove);
-		document.addEventListener("mouseup", onMouseUp);
+		activeDocument.addEventListener("mousemove", onMouseMove);
+		activeDocument.addEventListener("mouseup", onMouseUp);
 	}
 
 	private showHeart() {
 		const heart = this.petEl.createDiv({ cls: "pet-heart" });
 		const randomX = 25 + Math.random() * 50;
 		heart.setCssProps({ "--heart-random-x": `${randomX}%` });
-		activeWindow.setTimeout(() => heart.remove(), 1000);
+		window.setTimeout(() => heart.remove(), 1000);
 	}
 
 	// ── Speech bubble (positioned in container coords, not inside .pet) ──
@@ -325,18 +325,18 @@ export class StardewPet {
 		const bubble = activeDocument.createElement("div");
 		bubble.className = "pet-speech-bubble";
 		bubble.setText(text);
-		bubble.style.visibility = "hidden";
+		bubble.addClass("pet-speech-bubble--measuring");
 		this.container.appendChild(bubble);
 		this.speechBubbleEl = bubble;
 
 		// One rAF for the bubble's own layout, then position & show.
-		requestAnimationFrame(() => {
+		window.requestAnimationFrame(() => {
 			if (this.isDestroyed || this.speechBubbleEl !== bubble) return;
 			this.positionBubble(bubble);
-			bubble.style.visibility = "";
+			bubble.removeClass("pet-speech-bubble--measuring");
 		});
 
-		this.speechBubbleTimeout = activeWindow.setTimeout(() => {
+		this.speechBubbleTimeout = window.setTimeout(() => {
 			this.clearSpeechBubble();
 		}, duration);
 	}
@@ -359,11 +359,8 @@ export class StardewPet {
 
 		// Pet geometry in container-local coordinates
 		const pcx = pr.left + pr.width / 2 - cr.left;  // pet centre X
-		const pcy = pr.top + pr.height / 2 - cr.top;   // pet centre Y
 		const pTop = pr.top - cr.top;
 		const pBottom = pr.bottom - cr.top;
-		const pLeft = pr.left - cr.left;
-		const pRight = pr.right - cr.left;
 
 		const bw = br.width;
 		const bh = br.height;
@@ -389,13 +386,12 @@ export class StardewPet {
 		const left = Math.max(MARGIN, Math.min(cw - bw - MARGIN, best.left));
 		const top = Math.max(MARGIN, Math.min(ch - bh - MARGIN, best.top));
 
-		bubble.style.left = `${left}px`;
-		bubble.style.top = `${top}px`;
+		bubble.setCssStyles({ left: `${left}px`, top: `${top}px` });
 		bubble.className = `pet-speech-bubble pet-speech-bubble--${best.side}`;
 
 		// Arrow always points at the pet centre from the bubble's top/bottom edge.
 		const arrowX = pcx - left;
-		bubble.style.setProperty("--sb-arrow-x", `${Math.max(8, Math.min(bw - 8, arrowX))}px`);
+		bubble.setCssProps({"--sb-arrow-x": `${Math.max(8, Math.min(bw - 8, arrowX))}px`});
 		}
 
 	public clearSpeechBubble() {
@@ -404,7 +400,7 @@ export class StardewPet {
 			this.speechBubbleEl = null;
 		}
 		if (this.speechBubbleTimeout !== null) {
-			activeWindow.clearTimeout(this.speechBubbleTimeout);
+			window.clearTimeout(this.speechBubbleTimeout);
 			this.speechBubbleTimeout = null;
 		}
 		// Resume wandering now that the bubble is gone.
@@ -653,7 +649,7 @@ export class StardewPet {
 		this.isDestroyed = true;
 		this.clearSpeechBubble();
 		if (this.animationTimer !== null) {
-			activeWindow.clearInterval(this.animationTimer);
+			window.clearInterval(this.animationTimer);
 			this.animationTimer = null;
 		}
 		this.petEl.setCssStyles({ transition: "opacity 250ms ease", opacity: "0" });
@@ -666,7 +662,7 @@ export class StardewPet {
 		this.isDestroyed = true;
 		this.clearSpeechBubble();
 		if (this.animationTimer !== null) {
-			activeWindow.clearInterval(this.animationTimer);
+			window.clearInterval(this.animationTimer);
 			this.animationTimer = null;
 		}
 		this.petEl?.remove();

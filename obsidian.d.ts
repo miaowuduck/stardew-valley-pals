@@ -1,4 +1,4 @@
-import type { App, Modal, Setting, Component } from "obsidian";
+import type { App, Modal, Component } from "obsidian";
 
 declare module "obsidian" {
 	export class ConfirmationModal extends Modal {
@@ -30,5 +30,9 @@ declare module "obsidian" {
 
 	interface Setting {
 		addComponent(component: (el: HTMLElement) => Component): this;
+	}
+
+	interface ButtonComponent {
+		setDestructive(): this;
 	}
 }

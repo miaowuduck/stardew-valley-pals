@@ -41,7 +41,7 @@ export class PetSettingTab extends PluginSettingTab {
 		containerEl.empty();
 
 		// ── Display ──────────────────────────────────────────────
-		containerEl.createEl("h2", { text: "Display" });
+		new Setting(containerEl).setName("Display").setHeading();
 
 		new Setting(containerEl)
 			.setName("Overlay mode")
@@ -122,7 +122,7 @@ export class PetSettingTab extends PluginSettingTab {
 			);
 
 		// ── Pet Management ────────────────────────────────────
-		containerEl.createEl("h2", { text: "Pet Management" });
+		new Setting(containerEl).setName("Pet Management").setHeading();
 
 		const pets = this.plugin.instanceData.pets;
 		if (pets.length === 0) {
@@ -140,7 +140,7 @@ export class PetSettingTab extends PluginSettingTab {
 					.addButton((button) => {
 						button
 							.setButtonText("Remove")
-							.setWarning()
+							.setDestructive()
 							.onClick(async () => {
 								await this.plugin.removePetById(pet.id);
 								this.display();
@@ -166,7 +166,7 @@ export class PetSettingTab extends PluginSettingTab {
 			});
 
 		// ── AI Configuration ────────────────────────────────
-		containerEl.createEl("h2", { text: "AI Configuration" });
+		new Setting(containerEl).setName("AI Configuration").setHeading();
 
 		new Setting(containerEl)
 			.setName("OpenAI API key")
@@ -249,8 +249,8 @@ export class PetSettingTab extends PluginSettingTab {
 						} else {
 							new Notice("Connection successful! API key, endpoint, and model are configured correctly.", 6000);
 						}
-					} catch (e: any) {
-						const errMsg = e?.message || String(e);
+					} catch (e: unknown) {
+						const errMsg = (e as { message?: string })?.message || String(e);
 						console.error("API connection test failed:", e);
 						new Notice(`Connection failed: ${errMsg}`, 8000);
 					} finally {
@@ -261,7 +261,7 @@ export class PetSettingTab extends PluginSettingTab {
 			});
 
 		// ── Speech Bubbles ───────────────────────────────────────
-		containerEl.createEl("h2", { text: "Speech Bubbles" });
+		new Setting(containerEl).setName("Speech Bubbles").setHeading();
 
 		new Setting(containerEl)
 			.setName("Pet speech bubbles")
@@ -286,7 +286,7 @@ export class PetSettingTab extends PluginSettingTab {
 			});
 
 		// ── Random Page Rant ─────────────────────────────────────
-		containerEl.createEl("h2", { text: "Random Page Rant" });
+		new Setting(containerEl).setName("Random Page Rant").setHeading();
 		containerEl.createEl("p", {
 			text: "Pets and NPCs can periodically comment on your notes using AI. Configure how often and how much page content they see.",
 			cls: "setting-item-description",
@@ -366,14 +366,14 @@ export class PetSettingTab extends PluginSettingTab {
 			);
 
 		// ── Reset ────────────────────────────────────────────────
-		containerEl.createEl("h2", { text: "Reset" });
+		new Setting(containerEl).setName("Reset").setHeading();
 
 		new Setting(containerEl)
 			.setName("Reset all settings to defaults")
 			.setDesc("Restores every setting to its original value. This does not affect your pets — they will stay right where they are.")
 			.addButton((button) => {
 				button.setButtonText("Reset to defaults")
-					.setWarning()
+					.setDestructive()
 					.onClick(() => {
 						new ConfirmationModal(this.app, {
 							title: "Reset settings to defaults?",
