@@ -39,16 +39,6 @@ export class PetView extends ItemView {
 			return;
 		}
 
-		// Hide headers for a clean pet panel
-		const viewHeader = this.containerEl.querySelector(".view-header") as HTMLElement | null;
-		if (viewHeader) viewHeader.addClass("pet-view-header-hidden");
-
-		const tabsEl = this.containerEl.closest(".workspace-tabs") as HTMLElement | null;
-		const tabHeaderContainer = tabsEl?.querySelector(":scope > .workspace-tab-header-container") as HTMLElement | null;
-		if (tabHeaderContainer) tabHeaderContainer.addClass("pet-view-tab-header-hidden");
-		const tabContainer = tabsEl?.querySelector(":scope > .workspace-tab-container") as HTMLElement | null;
-		if (tabContainer) tabContainer.addClass("pet-view-tab-container-clean");
-
 		this.updateView();
 		this.setupResizeObserver();
 		this.startRantLoop();

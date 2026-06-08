@@ -35,17 +35,21 @@
 
 /* Remove all Obsidian chrome around the pet panel for a seamless look */
 
-/* Class-based header hiding (applied via JS) */
-.pet-view-header-hidden,
-.pet-view-tab-header-hidden {
+/* Hide the tab bar (icon + title strip at top) — :has is needed for scoping */
+.workspace-tabs:has(.workspace-leaf-content[data-type="pet-view"]) > .workspace-tab-header-container {
 	display: none;
 }
 
 /* Remove borders / gaps left behind by the hidden tab bar */
-.pet-view-tab-container-clean {
+.workspace-tabs:has(.workspace-leaf-content[data-type="pet-view"]) > .workspace-tab-container {
 	border-top: none;
 	margin-top: 0;
 	padding-top: 0;
+}
+
+/* Hide the inner view header — attribute selector gives enough specificity, no !important needed */
+.workspace-leaf-content[data-type="pet-view"] > .view-header {
+	display: none;
 }
 
 /* Make the view content stretch edge-to-edge */
