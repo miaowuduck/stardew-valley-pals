@@ -1,32 +1,69 @@
-import { PluginSettingTab, App, Setting, Notice, ConfirmationModal, SecretComponent } from "obsidian";
-import PetPlugin from "../main";
+import {
+	PluginSettingTab,
+	App,
+	Setting,
+	Notice,
+	ConfirmationModal,
+	SecretComponent,
+} from "obsidian";
+import type PetPlugin from "../main";
 import { initModel } from "../ai/chat";
 import { getStardewSpeciesDefinition } from "../pets/stardew-species";
 import { DEFAULT_DATA } from "../core/constants";
 
-function addLabeledSlider(
-	setting: Setting,
-	value: number,
-	min: number,
-	max: number,
-	step: number | "any",
-	formatValue: (value: number) => string,
-	onChange: (value: number) => void
+// ── Helpers ──────────────────────────────────────────────────────
+
+/** Creates a labeled slider with a live value display. */
+function addSlider(
+	container: HTMLElement,
+	opts: {
+		name: string;
+		desc: string;
+		value: number;
+		min: number;
+		max: number;
+		step: number | "any";
+		format: (v: number) => string;
+		onChange: (v: number) => void;
+	},
 ) {
-	setting.addSlider((slider) => {
-		slider.setLimits(min, max, step).setValue(value).setDynamicTooltip();
+	new Setting(container)
+		.setName(opts.name)
+		.setDesc(opts.desc)
+		.addSlider((slider) => {
+			slider
+				.setLimits(opts.min, opts.max, opts.step)
+				.setValue(opts.value)
+				.setDynamicTooltip();
 
-		const valueEl = slider.sliderEl.parentElement?.createEl("span", {
-			text: formatValue(slider.getValue()),
-			cls: "pet-setting-slider-value",
-		});
+			const display = slider.sliderEl.parentElement?.createEl("span", {
+				text: opts.format(slider.getValue()),
+				cls: "pet-setting-slider-value",
+			});
 
-		slider.onChange((nextValue) => {
-			valueEl?.setText(formatValue(nextValue));
-			onChange(nextValue);
+			slider.onChange((v) => {
+				display?.setText(opts.format(v));
+				opts.onChange(v);
+			});
 		});
-	});
 }
+
+/** Renders a section heading with an optional description. */
+function sectionHeading(
+	container: HTMLElement,
+	title: string,
+	description?: string,
+) {
+	const heading = new Setting(container).setName(title).setHeading();
+	if (description) {
+		heading.descEl.createEl("p", {
+			text: description,
+			cls: "setting-item-description",
+		});
+	}
+}
+
+// ── Settings Tab ─────────────────────────────────────────────────
 
 export class PetSettingTab extends PluginSettingTab {
 	plugin: PetPlugin;
@@ -40,30 +77,45 @@ export class PetSettingTab extends PluginSettingTab {
 		const { containerEl } = this;
 		containerEl.empty();
 
-		// ── Display ──────────────────────────────────────────────
-		new Setting(containerEl).setName("Display").setHeading();
+		// ═══════════════════════════════════════════════════════════
+		// Section 1 — Display
+		// ═══════════════════════════════════════════════════════════
+		sectionHeading(
+			containerEl,
+			"Display",
+			"Control how pets appear in your vault.",
+		);
 
+		// Overlay mode
 		new Setting(containerEl)
 			.setName("Overlay mode")
 			.setDesc(
-				"When enabled, pets roam freely across the entire Obsidian window on a transparent overlay. When disabled, pets live in a dockable side panel — you can choose a background scene below."
+				"Pets roam freely across the entire Obsidian window on a transparent overlay. " +
+					"Disable to keep pets in a dockable side panel with a background scene.",
 			)
 			.addToggle((toggle) => {
 				toggle
 					.setValue(this.plugin.instanceData.overlayMode ?? false)
-					.onChange(async (value) => {
-						await this.plugin.setOverlayMode(value);
+					.onChange(async (v) => {
+						await this.plugin.setOverlayMode(v);
 						this.display();
 					});
 			});
 
-		if (!this.plugin.instanceData.overlayMode) {
+		// Background
+		if (this.plugin.instanceData.overlayMode) {
 			new Setting(containerEl)
 				.setName("Background")
-				.setDesc("Select a background scene for the pet panel. Not available in overlay mode.")
-				.addDropdown((dropdown) => {
-					dropdown
-						.addOption("none", "None")
+				.setDesc(
+					"Not available in overlay mode. Disable overlay mode to pick a background scene.",
+				)
+				.addDropdown((dd) => dd.addOption("", "—").setDisabled(true));
+		} else {
+			new Setting(containerEl)
+				.setName("Background")
+				.setDesc("Choose a background scene for the pet side panel.")
+				.addDropdown((dd) => {
+					dd.addOption("none", "None")
 						.addOption("dirt", "Dirt")
 						.addOption("grass", "Grass")
 						.addOption("grass_fall", "Grass (Fall)")
@@ -74,73 +126,66 @@ export class PetSettingTab extends PluginSettingTab {
 						.addOption("wood_light", "Wood (Light)")
 						.addOption("wood_orange", "Wood (Orange)")
 						.setValue(this.plugin.instanceData.selectedBackground)
-						.onChange(async (value) => {
-							await this.plugin.chooseBackground(value);
+						.onChange(async (v) => {
+							await this.plugin.chooseBackground(v);
 						});
-				});
-		} else {
-			new Setting(containerEl)
-				.setName("Background")
-				.setDesc("Background selection is not available in overlay mode — pets use the full window as their playground. Disable overlay mode above to choose a background.")
-				.addDropdown((dropdown) => {
-					dropdown.addOption("", "—").setDisabled(true);
 				});
 		}
 
-		new Setting(containerEl)
-			.setName("Pet size")
-			.setDesc("Scale all pets from half size to triple size.")
-			.then((setting) =>
-				addLabeledSlider(
-					setting,
-					this.plugin.instanceData.petSize ?? 1,
-					0.5,
-					3,
-					0.1,
-					(value) => `${value.toFixed(1)}x`,
-					(value) => {
-						this.plugin.updatePetSize(value);
-					}
-				)
-			);
+		// Pet size
+		addSlider(containerEl, {
+			name: "Pet size",
+			desc: "Scale all pets from half to triple size.",
+			value: this.plugin.instanceData.petSize ?? 1,
+			min: 0.5,
+			max: 3,
+			step: 0.1,
+			format: (v) => `${v.toFixed(1)}x`,
+			onChange: (v) => this.plugin.updatePetSize(v),
+		});
 
-		new Setting(containerEl)
-			.setName("Movement speed")
-			.setDesc("How quickly pets wander around. Higher values mean faster movement.")
-			.then((setting) =>
-				addLabeledSlider(
-					setting,
-					this.plugin.instanceData.petSpeed ?? 1,
-					0.5,
-					3,
-					0.1,
-					(value) => `${value.toFixed(1)}x`,
-					(value) => {
-						this.plugin.updatePetSpeed(value);
-					}
-				)
-			);
+		// Movement speed
+		addSlider(containerEl, {
+			name: "Movement speed",
+			desc: "How quickly pets wander around. Higher = faster.",
+			value: this.plugin.instanceData.petSpeed ?? 1,
+			min: 0.5,
+			max: 3,
+			step: 0.1,
+			format: (v) => `${v.toFixed(1)}x`,
+			onChange: (v) => this.plugin.updatePetSpeed(v),
+		});
 
-		// ── Pet Management ────────────────────────────────────
-		new Setting(containerEl).setName("Pet Management").setHeading();
+		// ═══════════════════════════════════════════════════════════
+		// Section 2 — My Pets
+		// ═══════════════════════════════════════════════════════════
+		sectionHeading(
+			containerEl,
+			"My Pets",
+			"Manage the companions living in your vault.",
+		);
 
 		const pets = this.plugin.instanceData.pets;
+
 		if (pets.length === 0) {
-			containerEl.createEl("p", {
-				text: "No pets yet. Click \"Add Pet\" below to bring in your first companion!",
-				cls: "setting-item-description",
+			const empty = containerEl.createDiv({
+				cls: "pet-settings-empty",
+			});
+			empty.createDiv({ cls: "pet-settings-empty-icon", text: "🐾" });
+			empty.createEl("p", {
+				text: "No pets yet! Click the button below to bring in your first companion.",
+				cls: "pet-settings-empty-text",
 			});
 		} else {
 			for (const pet of pets) {
-				const speciesLabel =
-					getStardewSpeciesDefinition(pet.type)?.label ?? pet.type;
+				const def = getStardewSpeciesDefinition(pet.type);
+				const speciesLabel = def?.label ?? pet.type;
 				new Setting(containerEl)
 					.setName(pet.name)
 					.setDesc(`Type: ${speciesLabel}`)
-					.addButton((button) => {
-						button
-							.setButtonText("Remove")
-							.setDestructive()
+					.addButton((btn) => {
+						btn.setButtonText("Remove")
+							.setWarning()
 							.onClick(async () => {
 								await this.plugin.removePetById(pet.id);
 								this.display();
@@ -149,240 +194,378 @@ export class PetSettingTab extends PluginSettingTab {
 			}
 		}
 
+		// Add pet button
 		new Setting(containerEl)
 			.setName("Add a new pet")
 			.setDesc(
-				"Choose from cats, dogs, and Stardew Valley NPCs to join your vault."
+				"Choose from cats, dogs, parrots, junimos, and 35+ Stardew Valley NPCs.",
 			)
-			.addButton((button) => {
-				button
-					.setButtonText("Add Pet")
+			.addButton((btn) => {
+				btn.setButtonText("Add Pet")
 					.setCta()
 					.onClick(() => {
-						this.plugin.showAddPetCommand(() => {
-							this.display();
-						});
+						this.plugin.showAddPetCommand(() => this.display());
 					});
 			});
 
-		// ── AI Configuration ────────────────────────────────
-		new Setting(containerEl).setName("AI Configuration").setHeading();
+		// Clear all pets
+		if (pets.length > 0) {
+			new Setting(containerEl)
+				.setName("Remove all pets")
+				.setDesc(
+					"Permanently remove every pet and NPC from your vault.",
+				)
+				.addButton((btn) => {
+					btn.setButtonText("Clear All")
+						.setWarning()
+						.onClick(() => {
+							new ConfirmationModal(this.app, {
+								title: "Remove all pets?",
+								body: "This will permanently remove every pet and NPC from your vault. This cannot be undone.",
+								onConfirm: async () => {
+									await this.plugin.clearAllPets();
+									this.display();
+									new Notice(
+										"All pets have been removed.",
+									);
+								},
+							}).open();
+						});
+				});
+		}
 
+		// ═══════════════════════════════════════════════════════════
+		// Section 3 — AI Configuration
+		// ═══════════════════════════════════════════════════════════
+		sectionHeading(
+			containerEl,
+			"AI Configuration",
+			"Connect to an OpenAI-compatible API for intelligent speech bubbles.",
+		);
+
+		// API key
 		new Setting(containerEl)
-			.setName("OpenAI API key")
-			.setDesc("Select a secret from SecretStorage for your OpenAI, DeepSeek, or compatible provider.")
+			.setName("API key secret")
+			.setDesc(
+				"Select a secret from Obsidian's SecretStorage. Create one via the vault's security settings first.",
+			)
 			.addComponent((el) =>
 				new SecretComponent(this.app, el)
-					.setValue(this.plugin.instanceData.openAiApiKey || "")
-					.onChange(async (value) => {
-						this.plugin.updateOpenAiApiKey(value);
-					})
+					.setValue(
+						this.plugin.instanceData.openAiApiKey || "",
+					)
+					.onChange(async (v) => {
+						this.plugin.updateOpenAiApiKey(v);
+					}),
 			);
 
+		// API endpoint
 		new Setting(containerEl)
 			.setName("API endpoint")
-			.setDesc("OpenAI-compatible base URL. Defaults to OpenAI.")
+			.setDesc(
+				"OpenAI-compatible base URL. Use the default for OpenAI, or change for DeepSeek / custom providers.",
+			)
 			.addText((text) => {
-				text.setValue(this.plugin.instanceData.openAiBaseUrl || "https://api.openai.com/v1")
-					.onChange(async (value) => {
-						this.plugin.updateOpenAiBaseUrl(value.trim() || "https://api.openai.com/v1");
-						this.display();
+				text
+					.setValue(
+						this.plugin.instanceData.openAiBaseUrl ||
+							"https://api.openai.com/v1",
+					)
+					.setPlaceholder("https://api.openai.com/v1")
+					.onChange(async (v) => {
+						this.plugin.updateOpenAiBaseUrl(
+							v.trim() || "https://api.openai.com/v1",
+						);
 					});
 			});
+
+		// Model
 		new Setting(containerEl)
 			.setName("Model")
-			.setDesc("Model name for your provider (e.g. gpt-4o-mini, deepseek-chat).")
+			.setDesc(
+				"Model name for your provider, e.g. gpt-4o-mini, deepseek-chat, deepseek-v4-flash.",
+			)
 			.addText((text) => {
-				text.setValue(this.plugin.instanceData.selectedModel || "gpt-5-mini")
-					.onChange(async (value) => {
-						this.plugin.updateChosenModel(value);
+				text
+					.setValue(
+						this.plugin.instanceData.selectedModel ||
+							"gpt-5-mini",
+					)
+					.setPlaceholder("gpt-4o-mini")
+					.onChange(async (v) => {
+						this.plugin.updateChosenModel(v);
 					});
 			});
 
+		// Chinese prompt
 		new Setting(containerEl)
-			.setName("Chinese prompt")
-			.setDesc("Use Chinese-language instructions for AI-generated speech. Disable for English prompts.")
+			.setName("Chinese language")
+			.setDesc(
+				"Generate speech bubbles in Chinese. Disable for English.",
+			)
 			.addToggle((toggle) => {
 				toggle
-					.setValue(this.plugin.instanceData.useChinesePrompt ?? false)
-					.onChange((value) => {
-						this.plugin.updateChinesePrompt(value);
+					.setValue(
+						this.plugin.instanceData.useChinesePrompt ??
+							false,
+					)
+					.onChange((v) => {
+						this.plugin.updateChinesePrompt(v);
 					});
 			});
 
+		// Test connection
 		new Setting(containerEl)
 			.setName("Test connection")
-			.setDesc("Send a minimal request to verify your API key, endpoint, and model are configured correctly.")
-			.addButton((button) => {
-				button.setButtonText("Test").onClick(async () => {
-					const keyName = this.plugin.instanceData.openAiApiKey?.trim();
-					const key = keyName ? this.app.secretStorage.getSecret(keyName) : null;
-					const baseUrl = this.plugin.instanceData.openAiBaseUrl?.trim();
-					const model = this.plugin.instanceData.selectedModel?.trim();
+			.setDesc(
+				"Send a minimal request to verify your API key, endpoint, and model.",
+			)
+			.addButton((btn) => {
+				btn.setButtonText("Test Connection")
+					.setCta()
+					.onClick(async () => {
+						const keyName =
+							this.plugin.instanceData.openAiApiKey?.trim();
+						const key = keyName
+							? this.app.secretStorage.getSecret(
+									keyName,
+								)
+							: null;
+						const baseUrl =
+							this.plugin.instanceData.openAiBaseUrl?.trim();
+						const model =
+							this.plugin.instanceData.selectedModel?.trim();
 
-					if (!key) {
-						new Notice("Please select an API key secret first.", 5000);
-						return;
-					}
-					if (!baseUrl) {
-						new Notice("Please enter an API endpoint.", 5000);
-						return;
-					}
-					if (!model) {
-						new Notice("Please enter a model name.", 5000);
-						return;
-					}
-
-					button.setButtonText("Testing...");
-					button.setDisabled(true);
-
-					try {
-						const client = initModel(key, baseUrl);
-						const response = await client.chat.completions.create({
-							model: model,
-							messages: [{ role: "user", content: "Say 'ok'" }],
-							max_tokens: 20,
-						});
-						const reply = response.choices[0]?.message?.content?.trim() || "";
-						if (reply) {
-							new Notice(`Connection successful! Response: "${reply}"`, 6000);
-						} else {
-							new Notice("Connection successful! API key, endpoint, and model are configured correctly.", 6000);
+						if (!key) {
+							new Notice(
+								"Please select an API key secret first.",
+								5000,
+							);
+							return;
 						}
-					} catch (e: unknown) {
-						const errMsg = (e as { message?: string })?.message || String(e);
-						console.error("API connection test failed:", e);
-						new Notice(`Connection failed: ${errMsg}`, 8000);
-					} finally {
-						button.setButtonText("Test");
-						button.setDisabled(false);
-					}
-				});
+						if (!baseUrl) {
+							new Notice(
+								"Please enter an API endpoint.",
+								5000,
+							);
+							return;
+						}
+						if (!model) {
+							new Notice(
+								"Please enter a model name.",
+								5000,
+							);
+							return;
+						}
+
+						btn.setButtonText("Testing…");
+						btn.setDisabled(true);
+
+						try {
+							const client = initModel(key, baseUrl);
+							const resp =
+								await client.chat.completions.create({
+									model,
+									messages: [
+										{
+											role: "user",
+											content:
+												"Say 'ok'",
+										},
+									],
+									max_tokens: 20,
+								});
+							const reply =
+								resp.choices[0]?.message?.content?.trim() ||
+								"";
+							new Notice(
+								reply
+									? `✅ Connected — "${reply}"`
+									: "✅ Connection successful!",
+								6000,
+							);
+						} catch (e: unknown) {
+							const msg =
+								(e as { message?: string })
+									?.message || String(e);
+							console.error(
+								"API test failed:",
+								e,
+							);
+							new Notice(
+								`❌ Connection failed: ${msg}`,
+								8000,
+							);
+						} finally {
+							btn.setButtonText("Test Connection");
+							btn.setDisabled(false);
+						}
+					});
 			});
 
-		// ── Speech Bubbles ───────────────────────────────────────
-		new Setting(containerEl).setName("Speech Bubbles").setHeading();
+		// ═══════════════════════════════════════════════════════════
+		// Section 4 — Speech Bubbles
+		// ═══════════════════════════════════════════════════════════
+		sectionHeading(
+			containerEl,
+			"Speech Bubbles",
+			"Control which companions can speak and when.",
+		);
 
 		new Setting(containerEl)
-			.setName("Pet speech bubbles")
-			.setDesc("Allow regular pets (cats, dogs, etc.) to show speech bubbles on right-click and via automatic rants.")
+			.setName("Pet speech")
+			.setDesc(
+				"Allow regular pets (cats, dogs, chickens, etc.) to show speech bubbles.",
+			)
 			.addToggle((toggle) => {
 				toggle
-					.setValue(this.plugin.instanceData.petSpeechEnabled ?? true)
-					.onChange((value) => {
-						this.plugin.updatePetSpeechEnabled(value);
+					.setValue(
+						this.plugin.instanceData.petSpeechEnabled ?? true,
+					)
+					.onChange((v) => {
+						this.plugin.updatePetSpeechEnabled(v);
 					});
 			});
 
 		new Setting(containerEl)
-			.setName("NPC speech bubbles")
-			.setDesc("Allow Stardew Valley NPCs to show speech bubbles on right-click and via automatic rants.")
+			.setName("NPC speech")
+			.setDesc(
+				"Allow Stardew Valley NPCs to show speech bubbles with their unique personalities.",
+			)
 			.addToggle((toggle) => {
 				toggle
-					.setValue(this.plugin.instanceData.npcSpeechEnabled ?? true)
-					.onChange((value) => {
-						this.plugin.updateNpcSpeechEnabled(value);
+					.setValue(
+						this.plugin.instanceData.npcSpeechEnabled ?? true,
+					)
+					.onChange((v) => {
+						this.plugin.updateNpcSpeechEnabled(v);
 					});
 			});
 
-		// ── Random Page Rant ─────────────────────────────────────
-		new Setting(containerEl).setName("Random Page Rant").setHeading();
-		containerEl.createEl("p", {
-			text: "Pets and NPCs can periodically comment on your notes using AI. Configure how often and how much page content they see.",
-			cls: "setting-item-description",
+		// ═══════════════════════════════════════════════════════════
+		// Section 5 — Automatic Rants
+		// ═══════════════════════════════════════════════════════════
+		sectionHeading(
+			containerEl,
+			"Automatic Rants",
+			"Pets and NPCs can periodically comment on your notes using AI. Configure timing and context.",
+		);
+
+		// Enable
+		new Setting(containerEl)
+			.setName("Enable automatic rants")
+			.setDesc(
+				"Pets and NPCs will occasionally speak up on their own based on the timer below.",
+			)
+			.addToggle((toggle) => {
+				toggle
+					.setValue(
+						this.plugin.instanceData.pageRantEnabled ??
+							false,
+					)
+					.onChange((v) => {
+						this.plugin.updatePageRantEnabled(v);
+					});
+			});
+
+		// Only when focused
+		new Setting(containerEl)
+			.setName("Only rant when focused")
+			.setDesc(
+				"Suppress automatic rants while Obsidian is in the background. Right-click rants are always allowed.",
+			)
+			.addToggle((toggle) => {
+				toggle
+					.setValue(
+						this.plugin.instanceData
+							.pageRantOnlyWhenFocused ?? true,
+					)
+					.onChange((v) => {
+						this.plugin.updatePageRantOnlyWhenFocused(
+							v,
+						);
+					});
+			});
+
+		// Interval min
+		addSlider(containerEl, {
+			name: "Minimum interval",
+			desc: "Shortest time between automatic speech bubbles.",
+			value:
+				this.plugin.instanceData.pageRantMinMinutes ?? 5,
+			min: 1,
+			max: 180,
+			step: 1,
+			format: (v) => `${v} min`,
+			onChange: (v) =>
+				this.plugin.updatePageRantMinMinutes(v),
 		});
 
-		new Setting(containerEl)
-			.setName("Random page rant bubbles")
-			.setDesc("When enabled, pets and NPCs will occasionally speak up on their own based on the rant timer.")
-			.addToggle((toggle) => {
-				toggle
-					.setValue(this.plugin.instanceData.pageRantEnabled ?? false)
-					.onChange((value) => {
-						this.plugin.updatePageRantEnabled(value);
-					});
-			});
+		// Interval max
+		addSlider(containerEl, {
+			name: "Maximum interval",
+			desc: "Longest time between automatic speech bubbles. The actual delay is random between min and max.",
+			value:
+				this.plugin.instanceData.pageRantMaxMinutes ?? 20,
+			min: 1,
+			max: 180,
+			step: 1,
+			format: (v) => `${v} min`,
+			onChange: (v) =>
+				this.plugin.updatePageRantMaxMinutes(v),
+		});
+
+		// Context chars
+		addSlider(containerEl, {
+			name: "Page context length",
+			desc: "Characters from your current note sent to the AI. More = better awareness, but costs more tokens.",
+			value:
+				this.plugin.instanceData.pageRantContextChars ??
+				1200,
+			min: 100,
+			max: 10000,
+			step: 100,
+			format: (v) => `${v} chars`,
+			onChange: (v) =>
+				this.plugin.updatePageRantContextChars(v),
+		});
+
+		// ═══════════════════════════════════════════════════════════
+		// Section 6 — Danger Zone
+		// ═══════════════════════════════════════════════════════════
+		sectionHeading(
+			containerEl,
+			"Danger Zone",
+			"Reset all settings to their defaults. Your pets are not affected.",
+		);
 
 		new Setting(containerEl)
-			.setName("Only rant when window focused")
-			.setDesc("Suppress automatic rants while Obsidian is in the background. Right-click rants are unaffected.")
-			.addToggle((toggle) => {
-				toggle
-					.setValue(this.plugin.instanceData.pageRantOnlyWhenFocused ?? true)
-					.onChange((value) => {
-						this.plugin.updatePageRantOnlyWhenFocused(value);
-					});
-			});
-
-		new Setting(containerEl)
-			.setName("Rant interval minimum")
-			.setDesc("Minimum time between automatic speech bubbles.")
-			.then((setting) =>
-				addLabeledSlider(
-					setting,
-					this.plugin.instanceData.pageRantMinMinutes ?? 5,
-					1,
-					180,
-					1,
-					(value) => `${value} min`,
-					(value) => {
-						this.plugin.updatePageRantMinMinutes(value);
-					}
-				)
-			);
-
-		new Setting(containerEl)
-			.setName("Rant interval maximum")
-			.setDesc("Maximum time between automatic speech bubbles. The actual delay is randomly chosen between the minimum and maximum.")
-			.then((setting) =>
-				addLabeledSlider(
-					setting,
-					this.plugin.instanceData.pageRantMaxMinutes ?? 20,
-					1,
-					180,
-					1,
-					(value) => `${value} min`,
-					(value) => {
-						this.plugin.updatePageRantMaxMinutes(value);
-					}
-				)
-			);
-
-		new Setting(containerEl)
-			.setName("Page context length")
-			.setDesc("How many characters from your current note are sent to the AI for context. More characters give better awareness but cost more tokens.")
-			.then((setting) =>
-				addLabeledSlider(
-					setting,
-					this.plugin.instanceData.pageRantContextChars ?? 1200,
-					100,
-					10000,
-					100,
-					(value) => `${value} chars`,
-					(value) => {
-						this.plugin.updatePageRantContextChars(value);
-					}
-				)
-			);
-
-		// ── Reset ────────────────────────────────────────────────
-		new Setting(containerEl).setName("Reset").setHeading();
-
-		new Setting(containerEl)
-			.setName("Reset all settings to defaults")
-			.setDesc("Restores every setting to its original value. This does not affect your pets — they will stay right where they are.")
-			.addButton((button) => {
-				button.setButtonText("Reset to defaults")
-					.setDestructive()
+			.setName("Reset settings")
+			.setDesc(
+				"Restores every setting to its original value. Pets stay right where they are.",
+			)
+			.addButton((btn) => {
+				btn.setButtonText("Reset to Defaults")
+					.setWarning()
 					.onClick(() => {
 						new ConfirmationModal(this.app, {
-							title: "Reset settings to defaults?",
-							body: "This restores every setting to its original value. Your pets will not be affected. Continue?",
+							title:
+								"Reset settings to defaults?",
+							body: "All settings will be restored to their original values. Your pets will not be removed.",
 							onConfirm: async () => {
-								Object.assign(this.plugin.instanceData, DEFAULT_DATA);
-								await this.plugin.saveData(this.plugin.instanceData);
+								Object.assign(
+									this.plugin
+										.instanceData,
+									DEFAULT_DATA,
+								);
+								await this.plugin.saveData(
+									this.plugin
+										.instanceData,
+								);
 								this.display();
-								new Notice("Settings have been reset to defaults.");
+								new Notice(
+									"Settings have been reset to defaults.",
+								);
 							},
 						}).open();
 					});
