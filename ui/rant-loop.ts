@@ -22,6 +22,13 @@ interface RantLoopOptions {
 	getRantText: (type: string) => Promise<string>;
 	/** Whether speech is allowed for a given pet type. */
 	isSpeechEnabled: (type: string) => boolean;
+	/**
+	 * Optional: attempt a villager-to-villager conversation instead of a
+	 * rant. Should resolve true if a banter actually ran.
+	 */
+	tryBanter?: () => Promise<boolean>;
+	/** Probability (0–1) that a tick becomes a banter attempt. */
+	banterChance?: number;
 }
 
 // ── Scheduler ──────────────────────────────────────────────────
@@ -45,24 +52,39 @@ export function createRantLoopScheduler(opts: RantLoopOptions) {
 		const delay = Math.floor(Math.random() * (maxMs - minMs + 1)) + minMs;
 
 		timeoutId = window.setTimeout(() => {
-			if (stopped) return;
+			void (async () => {
+				if (stopped) return;
 
-			if (opts.isEnabled()) {
-				if (opts.onlyWhenFocused() && !activeDocument.hasFocus()) {
-					scheduleNext();
-					return;
+				if (opts.isEnabled()) {
+					if (opts.onlyWhenFocused() && !activeDocument.hasFocus()) {
+						scheduleNext();
+						return;
+					}
+
+					// Occasionally two villagers strike up a conversation instead
+					if (opts.tryBanter && Math.random() < (opts.banterChance ?? 0.4)) {
+						const bantered = await opts.tryBanter().catch((e) => {
+							console.error("Banter attempt failed:", e);
+							return false;
+						});
+						if (bantered || stopped) {
+							scheduleNext();
+							return;
+						}
+						// Fall through to a regular rant if banter wasn't possible
+					}
+
+					const targets = opts.getTargets();
+					const target = targets[Math.floor(Math.random() * targets.length)];
+					if (target && opts.isSpeechEnabled(target.type)) {
+						void opts.getRantText(target.type).then((text) => {
+							if (text) target.showSpeechBubble(text);
+						});
+					}
 				}
 
-				const targets = opts.getTargets();
-				const target = targets[Math.floor(Math.random() * targets.length)];
-				if (target && opts.isSpeechEnabled(target.type)) {
-					void opts.getRantText(target.type).then((text) => {
-						if (text) target.showSpeechBubble(text);
-					});
-				}
-			}
-
-			scheduleNext();
+				scheduleNext();
+			})();
 		}, delay);
 	}
 
@@ -87,6 +109,7 @@ export function createRantLoopScheduler(opts: RantLoopOptions) {
 export function createViewRantLoopOptions(
 	plugin: PetPlugin,
 	getPets: () => RantTarget[],
+	tryBanter?: () => Promise<boolean>,
 ): RantLoopOptions {
 	return {
 		isEnabled: () => plugin.instanceData.pageRantEnabled,
@@ -108,5 +131,10 @@ export function createViewRantLoopOptions(
 		getTargets: getPets,
 		getRantText: (type: string) => plugin.getPageRantText("timer", type),
 		isSpeechEnabled: (type: string) => plugin.isSpeechEnabled(type),
+		// Checked per tick so the settings toggle applies without a reload
+		tryBanter: tryBanter
+			? () => (plugin.instanceData.banterEnabled ? tryBanter() : Promise.resolve(false))
+			: undefined,
+		banterChance: 0.4,
 	};
 }

@@ -1,9 +1,8 @@
-import { type PetPluginData, type SelectorOption } from "./types";
+import { type PetPluginData } from "./types";
 
 // ── Default plugin data ────────────────────────────────────────
 
 export const DEFAULT_DATA: Partial<PetPluginData> = {
-	selectedBackground: "none",
 	pets: [],
 	nextPetIdCounters: {},
 	overlayMode: false,
@@ -18,39 +17,13 @@ export const DEFAULT_DATA: Partial<PetPluginData> = {
 	pageRantMaxMinutes: 20,
 	pageRantContextChars: 1200,
 	pageRantOnlyWhenFocused: true,
-	petSpeechEnabled: true,
 	npcSpeechEnabled: true,
+	npcScheduleEnabled: false,
+	maxVisitors: 3,
+	banterEnabled: true,
+	memoryEnabled: true,
+	npcMemories: {},
 	firstRunComplete: false,
-};
-
-// ── Background options ─────────────────────────────────────────
-
-export const BACKGROUNDS: SelectorOption[] = [
-	{ value: "none", label: "None" },
-	{ value: "dirt", label: "Dirt" },
-	{ value: "grass", label: "Grass" },
-	{ value: "grass_fall", label: "Grass (Fall)" },
-	{ value: "sand", label: "Sand" },
-	{ value: "snow", label: "Snow" },
-	{ value: "wood_broken", label: "Wood (Broken)" },
-	{ value: "wood_dark", label: "Wood (Dark)" },
-	{ value: "wood_light", label: "Wood (Light)" },
-	{ value: "wood_orange", label: "Wood (Orange)" },
-];
-
-// ── Legacy background migration map ────────────────────────────
-
-export const LEGACY_BACKGROUND_MAP: Record<string, string> = {
-	"backgrounds/snowbg-1.png": "snow",
-	"backgrounds/snowbg-2.png": "snow",
-	"backgrounds/summerbg-1.png": "grass",
-	"backgrounds/summerbg-2.png": "grass",
-	"backgrounds/summerbg-3.png": "grass",
-	"backgrounds/templebg-1.png": "sand",
-	"backgrounds/templebg-2.png": "sand",
-	"backgrounds/castlebg-1.png": "wood_dark",
-	"backgrounds/castlebg-2.png": "wood_light",
-	"snow.gif": "snow",
 };
 
 // ── New-note welcome messages ──────────────────────────────────
@@ -93,17 +66,17 @@ export const NEW_NOTE_MESSAGES = [
 	"Write on, hooman! ✍️",
 ];
 
-// ── Fallback rant templates ────────────────────────────────────
+// ── Fallback rant templates (NPCs only — animals don't talk) ───
 
 const NPC_TIMER_TEMPLATES_CN = [
 	'《%s》？嗯……看起来挺有意思的。',
-	'我刚路过看到了《%s》，这让我想起了星露谷的日子。',
+	'我刚路过看到了《%s》，这让我想起了山谷里的日子。',
 	'《%s》这篇东西不错，比 Joja 的广告强多了。',
 ];
 
 const NPC_CLICK_TEMPLATES_CN = [
 	'哦？有什么事吗？我正盯着《%s》呢。',
-	'你好啊，%s 这篇笔记我也在看。',
+	'你好啊，《%s》这篇笔记我也在看。',
 ];
 
 const NPC_TIMER_TEMPLATES_EN = [
@@ -117,61 +90,80 @@ const NPC_CLICK_TEMPLATES_EN = [
 	"Hey there, I was reading through %s myself.",
 ];
 
-const PET_TIMER_TEMPLATES_CN = [
-	'这个页面《%s》看起来很忙，但我怀疑它其实在偷偷摸鱼。',
-	'《%s》正在努力工作，我看得出来，只是效率像在打盹。',
-	'我盯着《%s》半天了，它的进度条好像一直在原地散步。',
-	'《%s》今天也在认真营业，不过节奏有点像慢动作回放。',
-];
-
-const PET_CLICK_TEMPLATES_CN = [
-	'你点我干嘛？我刚想吐槽《%s》呢。',
-	'右键我也没用，%s 这页的工作量还是很可疑。',
-	'《%s》看起来很忙，我正准备帮你吐槽它。',
-];
-
-const PET_TIMER_TEMPLATES_EN = [
-	"This page, %s, looks busy, but I suspect it's secretly taking snack breaks.",
-	"%s is working hard. The pace just feels like a slow afternoon in the valley.",
-	"I've been watching %s for a while now, and its progress bar seems to be power-napping.",
-	"%s is clearly on the job, but the workflow has a very relaxed rhythm.",
-];
-
-const PET_CLICK_TEMPLATES_EN = [
-	"Hey, why the right click? I was just about to roast %s.",
-	"Right-click noted. %s still looks suspiciously overworked.",
-	"I can explain this page's job, but first: %s is giving me busy-but-not-that-busy vibes.",
-];
-
-export const FALLBACK_RANT_TEMPLATES = {
-	npcTimerCn: NPC_TIMER_TEMPLATES_CN,
-	npcClickCn: NPC_CLICK_TEMPLATES_CN,
-	npcTimerEn: NPC_TIMER_TEMPLATES_EN,
-	npcClickEn: NPC_CLICK_TEMPLATES_EN,
-	petTimerCn: PET_TIMER_TEMPLATES_CN,
-	petClickCn: PET_CLICK_TEMPLATES_CN,
-	petTimerEn: PET_TIMER_TEMPLATES_EN,
-	petClickEn: PET_CLICK_TEMPLATES_EN,
-};
-
 export function getFallbackRantText(
 	pageLabel: string,
 	trigger: "timer" | "rightclick",
 	useChinese: boolean,
-	isNPC: boolean,
 ): string {
-	let templates: string[];
-
-	if (isNPC) {
-		templates = trigger === "timer"
-			? (useChinese ? NPC_TIMER_TEMPLATES_CN : NPC_TIMER_TEMPLATES_EN)
-			: (useChinese ? NPC_CLICK_TEMPLATES_CN : NPC_CLICK_TEMPLATES_EN);
-	} else {
-		templates = trigger === "timer"
-			? (useChinese ? PET_TIMER_TEMPLATES_CN : PET_TIMER_TEMPLATES_EN)
-			: (useChinese ? PET_CLICK_TEMPLATES_CN : PET_CLICK_TEMPLATES_EN);
-	}
+	const templates = trigger === "timer"
+		? (useChinese ? NPC_TIMER_TEMPLATES_CN : NPC_TIMER_TEMPLATES_EN)
+		: (useChinese ? NPC_CLICK_TEMPLATES_CN : NPC_CLICK_TEMPLATES_EN);
 
 	const template = templates[Math.floor(Math.random() * templates.length)];
 	return template.replace(/%s/g, pageLabel);
+}
+
+// ── Fallback banter dialogues (offline) ────────────────────────
+// %A% / %B% are replaced with the two speakers' names.
+
+export interface BanterLine {
+	speaker: "A" | "B";
+	text: string;
+}
+
+const BANTER_CN: BanterLine[][] = [
+	[
+		{ speaker: "A", text: "嘿，%B%，今天过得怎么样？" },
+		{ speaker: "B", text: "老样子，%A%。镇子上一切太平。" },
+		{ speaker: "A", text: "那就好。回头酒馆见。" },
+	],
+	[
+		{ speaker: "A", text: "%B%，你看到他最近写的那些东西了吗？" },
+		{ speaker: "B", text: "看到了。比去年那茬防风草长势好多了。" },
+	],
+	[
+		{ speaker: "A", text: "这种天气就适合偷个懒，对吧 %B%？" },
+		{ speaker: "B", text: "%A%，这话可别被刘易斯听见。" },
+		{ speaker: "A", text: "哈哈，他这会儿准在摆弄他的金雕像。" },
+	],
+	[
+		{ speaker: "B", text: "%A%，好久不见，最近在忙什么？" },
+		{ speaker: "A", text: "瞎忙呗。你懂的，日子一天天过。" },
+		{ speaker: "B", text: "行，那不耽误你了。" },
+	],
+];
+
+const BANTER_EN: BanterLine[][] = [
+	[
+		{ speaker: "A", text: "Hey %B%. How's it going?" },
+		{ speaker: "B", text: "Same as always, %A%. Town's quiet." },
+		{ speaker: "A", text: "Good. See you at the saloon later." },
+	],
+	[
+		{ speaker: "A", text: "You seen what they've been writing lately, %B%?" },
+		{ speaker: "B", text: "I have. Better than last year's parsnip crop." },
+	],
+	[
+		{ speaker: "A", text: "Weather like this makes you want to slack off, huh %B%?" },
+		{ speaker: "B", text: "Careful, %A%. Don't let Lewis hear you say that." },
+		{ speaker: "A", text: "Ha! He's probably polishing that gold statue of his." },
+	],
+	[
+		{ speaker: "B", text: "%A%! Haven't seen you around. Keeping busy?" },
+		{ speaker: "A", text: "Oh, you know how it is. One day at a time." },
+		{ speaker: "B", text: "Well, I won't keep you." },
+	],
+];
+
+export function getFallbackBanterDialogue(
+	nameA: string,
+	nameB: string,
+	useChinese: boolean,
+): BanterLine[] {
+	const pool = useChinese ? BANTER_CN : BANTER_EN;
+	const lines = pool[Math.floor(Math.random() * pool.length)];
+	return lines.map((l) => ({
+		speaker: l.speaker,
+		text: l.text.replace(/%A%/g, nameA).replace(/%B%/g, nameB),
+	}));
 }

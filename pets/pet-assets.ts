@@ -9,16 +9,6 @@ import junimoSprite from "../assets/stardew/pets/junimo.png";
 import parrotSprite from "../assets/stardew/pets/parrot.png";
 import turtleSprite from "../assets/stardew/pets/turtle.png";
 
-import dirtBackground from "../assets/stardew/backgrounds/dirt.png";
-import grassBackground from "../assets/stardew/backgrounds/grass.png";
-import grassFallBackground from "../assets/stardew/backgrounds/grass_fall.png";
-import sandBackground from "../assets/stardew/backgrounds/sand.png";
-import snowBackground from "../assets/stardew/backgrounds/snow.png";
-import woodBrokenBackground from "../assets/stardew/backgrounds/wood_broken.png";
-import woodDarkBackground from "../assets/stardew/backgrounds/wood_dark.png";
-import woodLightBackground from "../assets/stardew/backgrounds/wood_light.png";
-import woodOrangeBackground from "../assets/stardew/backgrounds/wood_orange.png";
-
 export const stardewPetSprites = {
 	cat: catSprite,
 	chicken: chickenSprite,
@@ -31,18 +21,6 @@ export const stardewPetSprites = {
 	turtle: turtleSprite,
 };
 
-export const stardewBackgrounds = {
-	dirt: dirtBackground,
-	grass: grassBackground,
-	grass_fall: grassFallBackground,
-	sand: sandBackground,
-	snow: snowBackground,
-	wood_broken: woodBrokenBackground,
-	wood_dark: woodDarkBackground,
-	wood_light: woodLightBackground,
-	wood_orange: woodOrangeBackground,
-};
-
 export type StardewPetSpriteKey = keyof typeof stardewPetSprites;
 
 export function getStardewPetAsset(petType: StardewPetSpriteKey): string {
@@ -53,16 +31,4 @@ export function getStardewPetAsset(petType: StardewPetSpriteKey): string {
 	return asset;
 }
 
-export function getStardewBackgroundAsset(backgroundName: keyof typeof stardewBackgrounds): string {
-	const asset = stardewBackgrounds[backgroundName];
-	if (!asset) {
-		throw new Error(`Unknown Stardew background asset: ${backgroundName}`);
-	}
-	return asset;
-}
-
 export const heartAsset = heartAssetPng;
-
-export function getBackgroundAsset(backgroundName: string): string {
-	return getStardewBackgroundAsset(backgroundName as keyof typeof stardewBackgrounds);
-}

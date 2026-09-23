@@ -48,16 +48,20 @@ export class SelectorModal extends Modal {
 
 			const card = grid.createDiv({ cls: "pet-selector-card" });
 
-			card.addEventListener("click", () => {
-				if (option.requiresName) {
-					this.showNameForm(option.value);
-				} else {
-					void (async () => {
-						await this.onSubmit(option.value, "");
-						this.close();
-					})();
-				}
-			});
+			if (option.disabled) {
+				card.addClass("pet-selector-card--disabled");
+			} else {
+				card.addEventListener("click", () => {
+					if (option.requiresName) {
+						this.showNameForm(option.value);
+					} else {
+						void (async () => {
+							await this.onSubmit(option.value, "");
+							this.close();
+						})();
+					}
+				});
+			}
 
 			if (option.spriteData) {
 				const sd = option.spriteData;
@@ -105,6 +109,9 @@ export class SelectorModal extends Modal {
 			}
 
 			card.createDiv({ cls: "pet-selector-label", text: option.label });
+			if (option.disabled && option.disabledReason) {
+				card.createDiv({ cls: "pet-selector-disabled-reason", text: option.disabledReason });
+			}
 		}
 	}
 
@@ -113,9 +120,16 @@ export class SelectorModal extends Modal {
 	private renderButtons(container: HTMLElement) {
 		for (const option of this.options) {
 			const button = container.createEl("button", {
-				text: option.label,
+				text: option.disabled && option.disabledReason
+					? `${option.label} (${option.disabledReason})`
+					: option.label,
 				cls: "selector-button",
 			});
+
+			if (option.disabled) {
+				button.disabled = true;
+				continue;
+			}
 
 			button.addEventListener("click", () => {
 				if (option.requiresName) {

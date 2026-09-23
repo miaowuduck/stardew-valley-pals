@@ -1,9 +1,9 @@
 {
 	"id": "stardew-valley-pals",
 	"name": "stardew-valley-pals",
-	"version": "1.8.0",
+	"version": "2.0.0",
 	"minAppVersion": "1.13.0",
-	"description": "Adopt cute pets, befriend 35+ NPCs from Stardew Valley, and let them roam across your notes — with AI-powered speech bubbles that comment on your writing.",
+	"description": "Adopt cute pets and befriend Stardew Valley villagers who visit on their own daily schedule — they chat with each other, comment on your notes, and remember what matters to you.",
 	"author": "miaowuduck",
 	"authorUrl": "https://github.com/miaowuduck",
 	"fundingUrl": "https://github.com/miaowuduck/stardew-valley-pals#support",

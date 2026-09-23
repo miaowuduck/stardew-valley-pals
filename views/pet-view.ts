@@ -1,11 +1,12 @@
 import { ItemView, WorkspaceLeaf } from "obsidian";
 import type PetPlugin from "../main";
 import type { PetInstance } from "../core/types";
-import { getBackgroundAsset } from "../pets/pet-assets";
 import { createRenderablePet } from "../pets/factory";
 import type { RenderablePet } from "../pets/factory";
 
 import { createRantLoopScheduler, createViewRantLoopOptions } from "../ui/rant-loop";
+import { createBanterRunner } from "../ui/banter";
+import type { BanterRunner } from "../ui/banter";
 
 export const VIEW_TYPE_PET = "pet-view";
 
@@ -15,10 +16,12 @@ export class PetView extends ItemView {
 	private resizeObserver?: ResizeObserver;
 	private resizeTimeout?: number;
 	private rantLoop: ReturnType<typeof createRantLoopScheduler> | null = null;
+	private banterRunner: BanterRunner;
 
 	constructor(leaf: WorkspaceLeaf, plugin: PetPlugin) {
 		super(leaf);
 		this.plugin = plugin;
+		this.banterRunner = createBanterRunner(plugin);
 	}
 
 	getViewType() {
@@ -51,8 +54,6 @@ export class PetView extends ItemView {
 			wrapper = container.createDiv({ cls: "pet-view-wrapper" });
 		}
 
-		this.updateBackground(wrapper);
-
 		const currentPetList = this.plugin.getPetList();
 		const existingPetIds = new Set(this.pets.map((p) => p.id));
 		for (const pet of currentPetList) {
@@ -62,32 +63,6 @@ export class PetView extends ItemView {
 		}
 
 		this.updateEmptyState(wrapper);
-	}
-
-	updateBackground(wrapper: HTMLElement) {
-		const background = this.plugin.getSelectedBackground();
-
-		wrapper.querySelector(".pet-view-background")?.remove();
-
-		if (background === "none") return;
-
-		try {
-			const backgroundUrl = getBackgroundAsset(background);
-			if (["wood_dark", "wood_light", "wood_orange"].includes(background)) {
-				wrapper.createEl("div", {
-					cls: "pet-view-background pet-view-background-tiled",
-				}).style.backgroundImage = `url('${backgroundUrl}')`;
-			} else {
-				wrapper.createEl("img", {
-					attr: { src: backgroundUrl, alt: "Background" },
-					cls: "pet-view-background",
-				});
-			}
-		} catch (error) {
-			console.error(`Failed to load background: ${background}`, error);
-		}
-
-
 	}
 
 	private updateEmptyState(wrapper: HTMLElement) {
@@ -134,7 +109,6 @@ export class PetView extends ItemView {
 			const pet = createRenderablePet(
 				wrapper,
 				singlePet.type,
-				this.plugin.getSelectedBackground(),
 				singlePet.id,
 				this.plugin.instanceData.petSize,
 				singlePet.name,
@@ -231,11 +205,16 @@ export class PetView extends ItemView {
 
 	private startRantLoop() {
 		this.rantLoop = createRantLoopScheduler(
-			createViewRantLoopOptions(this.plugin, () =>
-				this.pets.map((p) => ({
-					type: p.type,
-					showSpeechBubble: (text: string) => p.pet.showSpeechBubble(text),
-				})),
+			createViewRantLoopOptions(
+				this.plugin,
+				() =>
+					this.pets
+						.filter((p) => !p.pet.isBusy())
+						.map((p) => ({
+							type: p.type,
+							showSpeechBubble: (text: string) => p.pet.showSpeechBubble(text),
+						})),
+				() => this.banterRunner.tryRunBanter(this.pets),
 			),
 		);
 		this.rantLoop.start();

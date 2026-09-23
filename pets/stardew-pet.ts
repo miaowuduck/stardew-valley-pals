@@ -22,6 +22,7 @@ export class StardewPet {
 	private speechBubbleEl: HTMLElement | null = null;
 	private speechBubbleTimeout: ReturnType<typeof window.setTimeout> | null = null;
 	private actionLoopPaused = false;
+	private banterPaused = false;
 	private readonly spritesheetUrl: string;
 	private readonly definition: StardewSpeciesDefinition;
 	private readonly petName: string;
@@ -34,7 +35,6 @@ export class StardewPet {
 	constructor(
 		private container: Element,
 		definition: StardewSpeciesDefinition,
-		backgroundName: string,
 		petId: string,
 		scale: number,
 		petName: string,
@@ -465,9 +465,14 @@ export class StardewPet {
 		};
 	}
 
+	/** True when wandering should hold still (hover, drag, bubble, or banter). */
+	private isPaused(): boolean {
+		return this.actionLoopPaused || this.banterPaused;
+	}
+
 	/** Move one step in a direction. Returns true if the pet actually moved. */
 	private async moveOneStep(dir: "left" | "right" | "up" | "down"): Promise<boolean> {
-		if (this.actionLoopPaused || this.isDestroyed) return false;
+		if (this.isPaused() || this.isDestroyed) return false;
 
 		const bounds = this.getContainerBounds();
 		const stepDist = this.definition.moveDist * this.speedMultiplier;
@@ -521,7 +526,7 @@ export class StardewPet {
 		let blockedDir: "left" | "right" | "up" | "down" | null = null;
 
 		while (!this.isDestroyed) {
-			while (this.actionLoopPaused && !this.isDestroyed) await wait(100);
+			while (this.isPaused() && !this.isDestroyed) await wait(100);
 			if (this.isDestroyed) break;
 
 			if (behavior === "walking") {
@@ -533,7 +538,7 @@ export class StardewPet {
 				let moved = false;
 
 				for (let i = 0; i < maxSteps; i++) {
-					if (this.actionLoopPaused || this.isDestroyed) break;
+					if (this.isPaused() || this.isDestroyed) break;
 					const ok = await this.moveOneStep(facing);
 					if (!ok) {
 						blockedDir = facing;
@@ -566,7 +571,7 @@ export class StardewPet {
 				// Sit for 2–6 seconds
 				const sitTime = 2000 + Math.random() * 4000;
 				const started = Date.now();
-				while (Date.now() - started < sitTime && !this.actionLoopPaused && !this.isDestroyed) {
+				while (Date.now() - started < sitTime && !this.isPaused() && !this.isDestroyed) {
 					await wait(Math.min(500, sitTime - (Date.now() - started)));
 				}
 				behavior = "walking";
@@ -574,7 +579,7 @@ export class StardewPet {
 				void this.playAnimation("sleep");
 				const sleepTime = 4000 + Math.random() * 8000;
 				const started = Date.now();
-				while (Date.now() - started < sleepTime && !this.actionLoopPaused && !this.isDestroyed) {
+				while (Date.now() - started < sleepTime && !this.isPaused() && !this.isDestroyed) {
 					await wait(Math.min(500, sleepTime - (Date.now() - started)));
 				}
 				behavior = "walking";
@@ -586,7 +591,7 @@ export class StardewPet {
 
 	private async startNPCWanderLoop() {
 		while (!this.isDestroyed) {
-			while (this.actionLoopPaused && !this.isDestroyed) await wait(100);
+			while (this.isPaused() && !this.isDestroyed) await wait(100);
 			if (this.isDestroyed) break;
 
 			// Pick a random destination within wander radius (150–350 px)
@@ -605,7 +610,7 @@ export class StardewPet {
 			void this.playAnimation("idle");
 			const pauseTime = 3000 + Math.random() * 5000;
 			const started = Date.now();
-			while (Date.now() - started < pauseTime && !this.actionLoopPaused && !this.isDestroyed) {
+			while (Date.now() - started < pauseTime && !this.isPaused() && !this.isDestroyed) {
 				await wait(500);
 			}
 		}
@@ -615,7 +620,7 @@ export class StardewPet {
 	private async walkToward(tx: number, ty: number): Promise<boolean> {
 		const maxSteps = 60;
 		for (let i = 0; i < maxSteps; i++) {
-			if (this.actionLoopPaused || this.isDestroyed) return false;
+			if (this.isPaused() || this.isDestroyed) return false;
 
 			const dx = tx - this.currentX;
 			const dy = ty - this.currentY;
@@ -642,6 +647,47 @@ export class StardewPet {
 			}
 		}
 		return false;
+	}
+
+	// ── Banter API (villager conversations) ──────────────────────
+
+	public isNpcType(): boolean {
+		return this.isNPC;
+	}
+
+	public getPosition(): { x: number; y: number } {
+		return { x: this.currentX, y: this.currentY };
+	}
+
+	/** True when the pet shouldn't be picked for a banter or rant. */
+	public isBusy(): boolean {
+		return this.isDestroyed || this.banterPaused || this.speechBubbleEl !== null || this.isDragging;
+	}
+
+	/** Hold position for banter; independent from hover/bubble pausing. */
+	public setPaused(paused: boolean): void {
+		this.banterPaused = paused;
+		if (paused) void this.playAnimation("idle");
+	}
+
+	/** Flip the sprite to face a point on the x axis. */
+	public faceToward(x: number): void {
+		this.setFlip(x < this.currentX);
+	}
+
+	/** Walk to a position (brings two villagers together). Bounded by walkToward's step cap. */
+	public async walkTo(tx: number, ty: number): Promise<boolean> {
+		if (this.isDestroyed || this.banterPaused) return false;
+		const bounds = this.getContainerBounds();
+		const x = Math.max(bounds.minX, Math.min(bounds.maxX, tx));
+		const y = Math.max(bounds.minY, Math.min(bounds.maxY, ty));
+		return await this.walkToward(x, y);
+	}
+
+	/** Play the special animation once (onlooker reaction during banter). */
+	public celebrate(): void {
+		if (this.isDestroyed) return;
+		void this.playAnimation(this.definition.animations.special ? "special" : "idle");
 	}
 
 	public async destroy() {

@@ -91,7 +91,7 @@ export class PetSettingTab extends PluginSettingTab {
 			.setName("Overlay mode")
 			.setDesc(
 				"Pets roam freely across the entire Obsidian window on a transparent overlay. " +
-					"Disable to keep pets in a dockable side panel with a background scene.",
+					"Disable to keep pets in a dockable side panel.",
 			)
 			.addToggle((toggle) => {
 				toggle
@@ -101,36 +101,6 @@ export class PetSettingTab extends PluginSettingTab {
 						this.display();
 					});
 			});
-
-		// Background
-		if (this.plugin.instanceData.overlayMode) {
-			new Setting(containerEl)
-				.setName("Background")
-				.setDesc(
-					"Not available in overlay mode. Disable overlay mode to pick a background scene.",
-				)
-				.addDropdown((dd) => dd.addOption("", "—").setDisabled(true));
-		} else {
-			new Setting(containerEl)
-				.setName("Background")
-				.setDesc("Choose a background scene for the pet side panel.")
-				.addDropdown((dd) => {
-					dd.addOption("none", "None")
-						.addOption("dirt", "Dirt")
-						.addOption("grass", "Grass")
-						.addOption("grass_fall", "Grass (Fall)")
-						.addOption("sand", "Sand")
-						.addOption("snow", "Snow")
-						.addOption("wood_broken", "Wood (Broken)")
-						.addOption("wood_dark", "Wood (Dark)")
-						.addOption("wood_light", "Wood (Light)")
-						.addOption("wood_orange", "Wood (Orange)")
-						.setValue(this.plugin.instanceData.selectedBackground)
-						.onChange(async (v) => {
-							await this.plugin.chooseBackground(v);
-						});
-				});
-		}
 
 		// Pet size
 		addSlider(containerEl, {
@@ -198,7 +168,7 @@ export class PetSettingTab extends PluginSettingTab {
 		new Setting(containerEl)
 			.setName("Add a new pet")
 			.setDesc(
-				"Choose from cats, dogs, parrots, junimos, and 35+ Stardew Valley NPCs.",
+				"Choose from cats, dogs, parrots, junimos, and more. Villagers from Pelican Town can also be invited — each one is unique and keeps their own name.",
 			)
 			.addButton((btn) => {
 				btn.setButtonText("Add Pet")
@@ -235,7 +205,55 @@ export class PetSettingTab extends PluginSettingTab {
 		}
 
 		// ═══════════════════════════════════════════════════════════
-		// Section 3 — AI Configuration
+		// Section 3 — Villager Visits
+		// ═══════════════════════════════════════════════════════════
+		sectionHeading(
+			containerEl,
+			"Villager Visits",
+			"Let villagers drop by on their own Stardew-style daily schedule instead of adding them by hand.",
+		);
+
+		new Setting(containerEl)
+			.setName("Scheduled visits")
+			.setDesc(
+				"Villagers arrive and leave automatically according to their own visiting hours. " +
+					"Manually added villagers go home while this is on. Pets are unaffected.",
+			)
+			.addToggle((toggle) => {
+				toggle
+					.setValue(this.plugin.instanceData.npcScheduleEnabled ?? false)
+					.onChange(async (v) => {
+						await this.plugin.setNpcScheduleEnabled(v);
+						this.display();
+					});
+			});
+
+		if (this.plugin.instanceData.npcScheduleEnabled) {
+			addSlider(containerEl, {
+				name: "Max visitors",
+				desc: "How many villagers can be in town at the same time.",
+				value: this.plugin.instanceData.maxVisitors ?? 3,
+				min: 1,
+				max: 6,
+				step: 1,
+				format: (v) => `${v}`,
+				onChange: (v) => this.plugin.updateMaxVisitors(v),
+			});
+
+			const visitors = this.plugin.getCurrentVisitors();
+			new Setting(containerEl)
+				.setName("Currently in town")
+				.setDesc(
+					visitors.length > 0
+						? visitors
+							.map((v) => v.name)
+							.join(", ")
+						: "Nobody right now — check back at a different hour. Each villager keeps their own schedule.",
+				);
+		}
+
+		// ═══════════════════════════════════════════════════════════
+		// Section 4 — AI Configuration
 		// ═══════════════════════════════════════════════════════════
 		sectionHeading(
 			containerEl,
@@ -404,33 +422,18 @@ export class PetSettingTab extends PluginSettingTab {
 			});
 
 		// ═══════════════════════════════════════════════════════════
-		// Section 4 — Speech Bubbles
+		// Section 5 — Speech Bubbles
 		// ═══════════════════════════════════════════════════════════
 		sectionHeading(
 			containerEl,
 			"Speech Bubbles",
-			"Control which companions can speak and when.",
+			"Villagers comment on your notes and chat with each other. Animals stay silent — they express themselves with hearts.",
 		);
-
-		new Setting(containerEl)
-			.setName("Pet speech")
-			.setDesc(
-				"Allow regular pets (cats, dogs, chickens, etc.) to show speech bubbles.",
-			)
-			.addToggle((toggle) => {
-				toggle
-					.setValue(
-						this.plugin.instanceData.petSpeechEnabled ?? true,
-					)
-					.onChange((v) => {
-						this.plugin.updatePetSpeechEnabled(v);
-					});
-			});
 
 		new Setting(containerEl)
 			.setName("NPC speech")
 			.setDesc(
-				"Allow Stardew Valley NPCs to show speech bubbles with their unique personalities.",
+				"Allow Stardew Valley villagers to show speech bubbles with their unique personalities.",
 			)
 			.addToggle((toggle) => {
 				toggle
@@ -442,20 +445,103 @@ export class PetSettingTab extends PluginSettingTab {
 					});
 			});
 
+		new Setting(containerEl)
+			.setName("Villager conversations")
+			.setDesc(
+				"Two villagers occasionally walk up to each other, face off, and chat. Nearby animals gather to watch.",
+			)
+			.addToggle((toggle) => {
+				toggle
+					.setValue(
+						this.plugin.instanceData.banterEnabled ?? true,
+					)
+					.onChange((v) => {
+						this.plugin.updateBanterEnabled(v);
+					});
+			});
+
 		// ═══════════════════════════════════════════════════════════
-		// Section 5 — Automatic Rants
+		// Section 6 — Villager Memory
+		// ═══════════════════════════════════════════════════════════
+		sectionHeading(
+			containerEl,
+			"Villager Memory",
+			"Villagers remember key facts they learn from your notes and bring them up later.",
+		);
+
+		new Setting(containerEl)
+			.setName("Core memories")
+			.setDesc(
+				"After speaking, a villager may distill a durable fact about you (e.g. a long-term project) and remember it in future conversations.",
+			)
+			.addToggle((toggle) => {
+				toggle
+					.setValue(
+						this.plugin.instanceData.memoryEnabled ?? true,
+					)
+					.onChange((v) => {
+						this.plugin.updateMemoryEnabled(v);
+					});
+			});
+
+		const npcMemories = this.plugin.instanceData.npcMemories ?? {};
+		const memoryEntries = Object.keys(npcMemories)
+			.map((type) => ({ type, memories: npcMemories[type] }))
+			.filter((entry) => entry.memories.length > 0);
+
+		if (memoryEntries.length > 0) {
+			for (const { type, memories } of memoryEntries) {
+				const def = getStardewSpeciesDefinition(type);
+				const label = def?.label ?? type;
+				new Setting(containerEl)
+					.setName(label)
+					.setDesc(
+						`${memories.length} ${memories.length === 1 ? "memory" : "memories"}: ${memories.join(" · ")}`,
+					)
+					.addButton((btn) => {
+						btn.setButtonText("Clear")
+							.setWarning()
+							.onClick(async () => {
+								await this.plugin.clearNpcMemories(type);
+								this.display();
+							});
+					});
+			}
+
+			new Setting(containerEl)
+				.setName("Clear all memories")
+				.setDesc("Every villager forgets everything they learned about you.")
+				.addButton((btn) => {
+					btn.setButtonText("Clear All")
+						.setWarning()
+						.onClick(() => {
+							new ConfirmationModal(this.app, {
+								title: "Clear all villager memories?",
+								body: "Every villager will forget what they learned about you. This cannot be undone.",
+								onConfirm: async () => {
+									await this.plugin.clearNpcMemories();
+									this.display();
+									new Notice("All villager memories cleared.");
+								},
+							}).open();
+						});
+				});
+		}
+
+		// ═══════════════════════════════════════════════════════════
+		// Section 7 — Automatic Rants
 		// ═══════════════════════════════════════════════════════════
 		sectionHeading(
 			containerEl,
 			"Automatic Rants",
-			"Pets and NPCs can periodically comment on your notes using AI. Configure timing and context.",
+			"Villagers can periodically comment on your notes using AI. Configure timing and context.",
 		);
 
 		// Enable
 		new Setting(containerEl)
 			.setName("Enable automatic rants")
 			.setDesc(
-				"Pets and NPCs will occasionally speak up on their own based on the timer below.",
+				"Villagers will occasionally speak up on their own based on the timer below.",
 			)
 			.addToggle((toggle) => {
 				toggle
@@ -531,7 +617,7 @@ export class PetSettingTab extends PluginSettingTab {
 		});
 
 		// ═══════════════════════════════════════════════════════════
-		// Section 6 — Danger Zone
+		// Section 8 — Danger Zone
 		// ═══════════════════════════════════════════════════════════
 		sectionHeading(
 			containerEl,

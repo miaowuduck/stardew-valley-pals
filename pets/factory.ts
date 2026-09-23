@@ -6,7 +6,6 @@ export type RenderablePet = StardewPet;
 export function createRenderablePet(
 	container: Element,
 	type: string,
-	background: string,
 	petId: string,
 	scale: number,
 	petName: string,
@@ -19,7 +18,7 @@ export function createRenderablePet(
 		if (!species) {
 			return null;
 		}
-		return new StardewPet(container, species, background, petId, scale, petName, rightClickTextProvider, speedMultiplier, speechEnabledProvider);
+		return new StardewPet(container, species, petId, scale, petName, rightClickTextProvider, speedMultiplier, speechEnabledProvider);
 	}
 
 	return null;

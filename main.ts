@@ -1,17 +1,22 @@
 import { Plugin, Notice, WorkspaceLeaf, MarkdownView, ConfirmationModal } from "obsidian";
 import type { PetInstance, PetPluginData, SelectorOption } from "./core/types";
 import { isNpcSpeciesType } from "./core/types";
-import { DEFAULT_DATA, BACKGROUNDS, LEGACY_BACKGROUND_MAP, NEW_NOTE_MESSAGES, getFallbackRantText } from "./core/constants";
+import { DEFAULT_DATA, NEW_NOTE_MESSAGES, getFallbackRantText, getFallbackBanterDialogue } from "./core/constants";
+import type { BanterLine } from "./core/constants";
+import { computeVisitors } from "./core/npc-schedule";
 import { getStardewSpeciesDefinition } from "./pets/stardew-species";
 import { PetView, VIEW_TYPE_PET } from "./views/pet-view";
 import { OverlayPetView } from "./views/overlay-view";
 import { PetSettingTab } from "./ui/settings";
 import { SelectorModal } from "./ui/modals";
-import { generatePageRantText, initModel } from "./ai/chat";
+import { generateDialogue, generatePageRantText, extractMemory, initModel } from "./ai/chat";
 import { STARDEW_SPECIES_OPTIONS, getStardewSpeciesPersona } from "./pets/stardew-species";
 import type OpenAI from "openai";
 
 export type { PetInstance };
+
+const MAX_NPC_MEMORIES = 10;
+const VISITOR_SYNC_INTERVAL_MS = 60 * 1000;
 
 export default class PetPlugin extends Plugin {
 	instanceData!: PetPluginData;
@@ -19,8 +24,9 @@ export default class PetPlugin extends Plugin {
 	private chatmodel: OpenAI | null = null;
 	private overlayView: OverlayPetView | null = null;
 	private lastMarkdownView: MarkdownView | null = null;
+	/** Villagers currently in town under schedule mode (in-memory, recomputed from the clock). */
+	private currentVisitors: PetInstance[] = [];
 	protected readonly PETS: SelectorOption[] = STARDEW_SPECIES_OPTIONS;
-	protected readonly BACKGROUNDS: SelectorOption[] = BACKGROUNDS;
 
 	// ── Lifecycle ──────────────────────────────────────────────
 
@@ -45,6 +51,9 @@ export default class PetPlugin extends Plugin {
 		this.registerNewNoteNotices();
 		this.addSettingTab(new PetSettingTab(this.app, this));
 
+		// Keep villager visits in sync with the clock (no-op when schedule mode is off)
+		this.registerInterval(window.setInterval(() => this.syncVisitors(), VISITOR_SYNC_INTERVAL_MS));
+
 		this.addRibbonIcon("cat", "Toggle pet view", async () => {
 			if (this.instanceData.overlayMode) {
 				if (this.overlayView) {
@@ -52,7 +61,7 @@ export default class PetPlugin extends Plugin {
 					this.overlayView = null;
 				} else {
 					this.overlayView = new OverlayPetView(this);
-					for (const pet of this.instanceData.pets) {
+					for (const pet of this.getPetList()) {
 						this.overlayView.addPet(pet);
 					}
 					this.overlayView.startRantLoop();
@@ -65,10 +74,13 @@ export default class PetPlugin extends Plugin {
 		});
 
 		this.app.workspace.onLayoutReady(async () => {
+			// Compute today's visitors before views render so they show up immediately
+			this.syncVisitors();
+
 			if (this.instanceData.overlayMode) {
 				await this.closeView();
 				this.overlayView = new OverlayPetView(this);
-				for (const pet of this.instanceData.pets) {
+				for (const pet of this.getPetList()) {
 					this.overlayView.addPet(pet);
 				}
 				this.overlayView.startRantLoop();
@@ -98,16 +110,15 @@ export default class PetPlugin extends Plugin {
 		const raw: Record<string, unknown> = await this.loadData() ?? {};
 		// Clean up stale fields from removed features
 		delete (raw as { animatedBackground?: unknown }).animatedBackground;
+		delete raw.selectedBackground;
+		delete raw.petSpeechEnabled;
 		this.instanceData = Object.assign({}, DEFAULT_DATA, raw) as PetPluginData;
 
-		// Migrate legacy background IDs
-		if (this.instanceData.selectedBackground in LEGACY_BACKGROUND_MAP) {
-			this.instanceData.selectedBackground = LEGACY_BACKGROUND_MAP[this.instanceData.selectedBackground];
-		}
-
-		// Ensure counter object exists (older data may lack it)
 		if (!this.instanceData.nextPetIdCounters) {
 			this.instanceData.nextPetIdCounters = {};
+		}
+		if (!this.instanceData.npcMemories) {
+			this.instanceData.npcMemories = {};
 		}
 
 		// Clean up counters for species that no longer exist
@@ -116,6 +127,26 @@ export default class PetPlugin extends Plugin {
 				delete this.instanceData.nextPetIdCounters[type];
 			}
 		}
+
+		this.migratePets();
+	}
+
+	/**
+	 * Enforce villager rules on stored data:
+	 * - one instance per villager, always with their official name
+	 * - no stored villagers at all while schedule mode manages them
+	 */
+	private migratePets() {
+		const seenNpcTypes = new Set<string>();
+		this.instanceData.pets = this.instanceData.pets.filter((pet) => {
+			if (!isNpcSpeciesType(pet.type)) return true;
+			if (this.instanceData.npcScheduleEnabled) return false;
+			if (seenNpcTypes.has(pet.type)) return false;
+			seenNpcTypes.add(pet.type);
+			const def = getStardewSpeciesDefinition(pet.type);
+			if (def) pet.name = def.label;
+			return true;
+		});
 	}
 
 	private updateSetting<K extends keyof PetPluginData>(key: K, value: PetPluginData[K]): void {
@@ -256,7 +287,7 @@ export default class PetPlugin extends Plugin {
 
 	async getPageRantText(trigger: "timer" | "rightclick", petType?: string): Promise<string> {
 		const pageLabel = this.getCurrentPageLabel();
-		const isNPC = petType ? isNpcSpeciesType(petType) : false;
+		const npcName = petType ? (getStardewSpeciesDefinition(petType)?.label ?? petType) : "a villager";
 
 		// Capture selected text or caret vicinity.
 		// When the pet lives in a sidebar leaf (PetView), right-clicking it
@@ -297,9 +328,11 @@ export default class PetPlugin extends Plugin {
 			generated = await generatePageRantText(
 				pageLabel, trigger, selectedText, pageContext,
 				this.instanceData.pageRantContextChars || 1200, activitySummary,
+				npcName,
 				petType ? getStardewSpeciesPersona(petType) : undefined,
+				petType ? this.getNpcMemories(petType) : [],
 				this.chatmodel, this.instanceData.selectedModel || "gpt-5-mini",
-				this.instanceData.useChinesePrompt ?? false, isNPC,
+				this.instanceData.useChinesePrompt ?? false,
 			);
 		} catch (e: unknown) {
 			const errMsg = (e as { message?: string })?.message || String(e);
@@ -307,17 +340,91 @@ export default class PetPlugin extends Plugin {
 			new Notice(`AI 模型调用失败，使用离线吐槽: ${errMsg}`, 5000);
 		}
 
-		return generated || getFallbackRantText(pageLabel, trigger, this.instanceData.useChinesePrompt ?? false, isNPC);
+		if (generated) {
+			void this.maybeExtractMemory(petType);
+			return generated;
+		}
+		return getFallbackRantText(pageLabel, trigger, this.instanceData.useChinesePrompt ?? false);
+	}
+
+	// ── Banter (villager conversations) ────────────────────────
+
+	async getBanterDialogue(typeA: string, typeB: string): Promise<BanterLine[]> {
+		const nameA = getStardewSpeciesDefinition(typeA)?.label ?? typeA;
+		const nameB = getStardewSpeciesDefinition(typeB)?.label ?? typeB;
+		const pageLabel = this.getCurrentPageLabel();
+		const pageContext = await this.getCurrentPageContextSnippet(this.instanceData.pageRantContextChars || 1200);
+
+		let lines = await generateDialogue(
+			nameA, getStardewSpeciesPersona(typeA), this.getNpcMemories(typeA),
+			nameB, getStardewSpeciesPersona(typeB), this.getNpcMemories(typeB),
+			pageLabel, pageContext,
+			this.chatmodel, this.instanceData.selectedModel || "gpt-5-mini",
+			this.instanceData.useChinesePrompt ?? false,
+		);
+
+		if (lines.length === 0) {
+			lines = getFallbackBanterDialogue(nameA, nameB, this.instanceData.useChinesePrompt ?? false);
+		}
+
+		void this.maybeExtractMemory(Math.random() < 0.5 ? typeA : typeB);
+		return lines;
+	}
+
+	// ── Core memories ──────────────────────────────────────────
+
+	getNpcMemories(type: string): string[] {
+		return this.instanceData.npcMemories?.[type] ?? [];
+	}
+
+	async addNpcMemory(type: string, fact: string): Promise<void> {
+		if (!this.instanceData.npcMemories) this.instanceData.npcMemories = {};
+		const list = this.instanceData.npcMemories[type] ?? [];
+		const normalized = fact.trim();
+		if (!normalized) return;
+		// Skip duplicates / near-duplicates
+		if (list.some((m) => m === normalized || m.includes(normalized) || normalized.includes(m))) {
+			return;
+		}
+		list.push(normalized);
+		if (list.length > MAX_NPC_MEMORIES) list.splice(0, list.length - MAX_NPC_MEMORIES);
+		this.instanceData.npcMemories[type] = list;
+		await this.saveData(this.instanceData);
+	}
+
+	async clearNpcMemories(type?: string): Promise<void> {
+		if (!this.instanceData.npcMemories) this.instanceData.npcMemories = {};
+		if (type) {
+			delete this.instanceData.npcMemories[type];
+		} else {
+			this.instanceData.npcMemories = {};
+		}
+		await this.saveData(this.instanceData);
+	}
+
+	/** Occasionally distill a durable fact about the user after an NPC speaks. */
+	private async maybeExtractMemory(petType?: string): Promise<void> {
+		if (!petType || !isNpcSpeciesType(petType)) return;
+		if (!this.instanceData.memoryEnabled) return;
+		if (!this.chatmodel) return;
+		if (Math.random() > 1 / 3) return;
+
+		const npcName = getStardewSpeciesDefinition(petType)?.label ?? petType;
+		const pageLabel = this.getCurrentPageLabel();
+		const pageContext = await this.getCurrentPageContextSnippet(1500);
+		const fact = await extractMemory(
+			pageLabel, pageContext, npcName, this.getNpcMemories(petType),
+			this.chatmodel, this.instanceData.selectedModel || "gpt-5-mini",
+			this.instanceData.useChinesePrompt ?? false,
+		);
+		if (fact) {
+			await this.addNpcMemory(petType, fact);
+		}
 	}
 
 	// ── Commands ───────────────────────────────────────────────
 
 	private registerCommands() {
-		this.addCommand({
-			id: "choose-background-dropdown",
-			name: "Choose pet view background",
-			callback: () => this.showChooseBackgroundCommand(),
-		});
 		this.addCommand({
 			id: "add-pet-dropdown",
 			name: "Add a pet",
@@ -364,19 +471,30 @@ export default class PetPlugin extends Plugin {
 	}
 
 	showAddPetCommand(onComplete?: () => void) {
-		new SelectorModal(this.app, this.PETS, async (value: string, name: string) => {
+		const scheduleMode = this.instanceData.npcScheduleEnabled;
+		const presentNpcTypes = new Set(
+			this.getPetList()
+				.filter((p) => isNpcSpeciesType(p.type))
+				.map((p) => p.type),
+		);
+		const options = this.PETS.map((option) => {
+			if (!isNpcSpeciesType(option.value)) return option;
+			if (scheduleMode) {
+				return { ...option, disabled: true, disabledReason: "Visits on a schedule" };
+			}
+			if (presentNpcTypes.has(option.value)) {
+				return { ...option, disabled: true, disabledReason: "Already in town" };
+			}
+			return option;
+		});
+
+		new SelectorModal(this.app, options, async (value: string, name: string) => {
 			await this.addPet(value, name);
 			if (onComplete) {
 				// Defer to the next macrotask so the modal has time to close
 				// before the caller refreshes UI that sits behind the modal.
 				window.setTimeout(() => onComplete(), 0);
 			}
-		}).open();
-	}
-
-	showChooseBackgroundCommand() {
-		new SelectorModal(this.app, this.BACKGROUNDS, async (value: string) => {
-			await this.chooseBackground(value);
 		}).open();
 	}
 
@@ -412,7 +530,7 @@ export default class PetPlugin extends Plugin {
 			await this.closeView();
 			this.overlayView = new OverlayPetView(this);
 			this.overlayView.startRantLoop();
-			for (const pet of this.instanceData.pets) {
+			for (const pet of this.getPetList()) {
 				this.overlayView.addPet(pet);
 			}
 		} else {
@@ -422,14 +540,119 @@ export default class PetPlugin extends Plugin {
 		}
 	}
 
+	private addPetToViews(pet: PetInstance): void {
+		if (this.instanceData.overlayMode) {
+			this.overlayView?.addPet(pet);
+			return;
+		}
+		// Panel mode: only touch open views; a closed view picks the pet up on next open
+		for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_PET)) {
+			const view = leaf.view;
+			if (view instanceof PetView) {
+				view.addPetToView(view.getWrapper(), pet);
+			}
+		}
+	}
+
+	private removePetFromViews(id: string): void {
+		if (this.instanceData.overlayMode) {
+			this.overlayView?.removePet(id);
+			return;
+		}
+		for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_PET)) {
+			if (leaf.view instanceof PetView) leaf.view.removePet(id);
+		}
+	}
+
+	// ── Villager schedule mode ─────────────────────────────────
+
+	async setNpcScheduleEnabled(enabled: boolean): Promise<void> {
+		if (this.instanceData.npcScheduleEnabled === enabled) return;
+		this.instanceData.npcScheduleEnabled = enabled;
+
+		if (enabled) {
+			// Manual villagers go home; the schedule takes over
+			const manualNpcs = this.instanceData.pets.filter((p) => isNpcSpeciesType(p.type));
+			if (manualNpcs.length > 0) {
+				this.instanceData.pets = this.instanceData.pets.filter((p) => !isNpcSpeciesType(p.type));
+				for (const npc of manualNpcs) {
+					this.removePetFromViews(npc.id);
+				}
+				new Notice("Villager visits enabled — manually added villagers have gone home for now.");
+			}
+			await this.saveData(this.instanceData);
+			this.syncVisitors();
+		} else {
+			await this.saveData(this.instanceData);
+			const leaving = this.currentVisitors;
+			this.currentVisitors = [];
+			for (const visitor of leaving) {
+				this.removePetFromViews(visitor.id);
+			}
+			if (leaving.length > 0) {
+				new Notice("Villager visits disabled — the visitors have gone home.");
+			}
+		}
+	}
+
+	/** Bring the in-town villager roster in line with the current clock time. */
+	syncVisitors(): void {
+		if (!this.instanceData.npcScheduleEnabled) return;
+
+		const targetIds = computeVisitors(new Date(), this.instanceData.maxVisitors || 3);
+		const cn = this.instanceData.useChinesePrompt ?? false;
+
+		// Arrivals
+		for (const id of targetIds) {
+			if (this.currentVisitors.some((v) => v.id === id)) continue;
+			const def = getStardewSpeciesDefinition(id);
+			if (!def) continue;
+			const visitor: PetInstance = { id, type: id, name: def.label };
+			this.currentVisitors.push(visitor);
+			this.addPetToViews(visitor);
+			new Notice(cn ? `${def.label} 来到了你的笔记旁。` : `${def.label} is in town.`);
+		}
+
+		// Departures
+		for (const visitor of [...this.currentVisitors]) {
+			if (targetIds.includes(visitor.id)) continue;
+			this.currentVisitors = this.currentVisitors.filter((v) => v.id !== visitor.id);
+			this.removePetFromViews(visitor.id);
+			new Notice(cn ? `${visitor.name} 回家了。` : `${visitor.name} headed home.`);
+		}
+	}
+
+	getCurrentVisitors(): PetInstance[] {
+		return this.currentVisitors;
+	}
+
 	// ── Pet CRUD ───────────────────────────────────────────────
 
 	async addPet(type: string, name: string): Promise<void> {
-		if (!(type in this.instanceData.nextPetIdCounters)) {
-			this.instanceData.nextPetIdCounters[type] = 1;
+		const def = getStardewSpeciesDefinition(type);
+		if (!def) return;
+
+		let id: string;
+		if (isNpcSpeciesType(type)) {
+			// Villagers are unique characters with fixed names
+			if (this.instanceData.npcScheduleEnabled) {
+				new Notice(`${def.label} visits on their own schedule while villager visits are enabled.`);
+				return;
+			}
+			if (this.instanceData.pets.some((p) => p.type === type)) {
+				new Notice(`${def.label} is already in town.`);
+				return;
+			}
+			id = type;
+			name = def.label;
+		} else {
+			if (!(type in this.instanceData.nextPetIdCounters)) {
+				this.instanceData.nextPetIdCounters[type] = 1;
+			}
+			id = `${type}-${this.instanceData.nextPetIdCounters[type]}`;
+			this.instanceData.nextPetIdCounters[type]++;
 		}
-		const id = `${type}-${this.instanceData.nextPetIdCounters[type]}`;
-		this.instanceData.nextPetIdCounters[type]++;
+
 		this.instanceData.pets.push({ id, type, name });
 		await this.saveData(this.instanceData);
 
@@ -451,14 +674,7 @@ export default class PetPlugin extends Plugin {
 	async removePetById(id: string): Promise<void> {
 		this.instanceData.pets = this.instanceData.pets.filter((p) => p.id !== id);
 		await this.saveData(this.instanceData);
-
-		if (this.instanceData.overlayMode) {
-			this.overlayView?.removePet(id);
-			return;
-		}
-		for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_PET)) {
-			if (leaf.view instanceof PetView) leaf.view.removePet(id);
-		}
+		this.removePetFromViews(id);
 	}
 
 	async clearAllPets(): Promise<void> {
@@ -477,33 +693,11 @@ export default class PetPlugin extends Plugin {
 		}
 	}
 
-	// ── Background ─────────────────────────────────────────────
-
-	async chooseBackground(backgroundFile: string): Promise<void> {
-		if (this.instanceData.overlayMode) {
-			new Notice("Background selection is not available in overlay mode. Disable overlay mode in settings first.", 4000);
-			return;
-		}
-		if (this.instanceData.selectedBackground === backgroundFile) return;
-
-		this.instanceData.selectedBackground = backgroundFile;
-		await this.saveData(this.instanceData);
-
-		const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_PET);
-		if (leaves.length === 0) await this.openView();
-		for (const leaf of leaves) {
-			if (leaf.view instanceof PetView) leaf.view.updateView();
-		}
-	}
-
-	getSelectedBackground(): string {
-		return this.instanceData.selectedBackground;
-	}
-
 	// ── Pet list ───────────────────────────────────────────────
 
+	/** All rendered companions: stored pets plus schedule-mode visitors. */
 	getPetList(): PetInstance[] {
-		return this.instanceData.pets || [];
+		return [...(this.instanceData.pets || []), ...this.currentVisitors];
 	}
 
 	getCleanLabel(id: string): string {
@@ -517,19 +711,16 @@ export default class PetPlugin extends Plugin {
 			.join(" ");
 	}
 
-	/** Shared speech check used by views and the rant-loop scheduler. */
+	/** Shared speech check used by views and the rant-loop scheduler. Animals never speak. */
 	isSpeechEnabled(type: string): boolean {
-		return isNpcSpeciesType(type)
-			? (this.instanceData.npcSpeechEnabled ?? true)
-			: (this.instanceData.petSpeechEnabled ?? true);
+		if (!isNpcSpeciesType(type)) return false;
+		return this.instanceData.npcSpeechEnabled ?? true;
 	}
 
 	/** Returns a closure for createRenderablePet's speechEnabledProvider parameter. */
 	getSpeechEnabledProvider(): (isNPC: boolean) => boolean {
 		return (isNPC: boolean) =>
-			isNPC
-				? (this.instanceData.npcSpeechEnabled ?? true)
-				: (this.instanceData.petSpeechEnabled ?? true);
+			isNPC ? (this.instanceData.npcSpeechEnabled ?? true) : false;
 	}
 
 	// ── Settings updaters ──────────────────────────────────────
@@ -538,12 +729,18 @@ export default class PetPlugin extends Plugin {
 	updateOpenAiBaseUrl(v: string) { this.updateSetting("openAiBaseUrl", v); }
 	updateChinesePrompt(v: boolean) { this.updateSetting("useChinesePrompt", v); }
 	updatePageRantEnabled(v: boolean) { this.updateSetting("pageRantEnabled", v); }
-	updatePetSpeechEnabled(v: boolean) { this.updateSetting("petSpeechEnabled", v); }
 	updateNpcSpeechEnabled(v: boolean) { this.updateSetting("npcSpeechEnabled", v); }
+	updateBanterEnabled(v: boolean) { this.updateSetting("banterEnabled", v); }
+	updateMemoryEnabled(v: boolean) { this.updateSetting("memoryEnabled", v); }
 	updatePageRantMinMinutes(v: number) { this.updateSetting("pageRantMinMinutes", v); }
 	updatePageRantMaxMinutes(v: number) { this.updateSetting("pageRantMaxMinutes", v); }
 	updatePageRantContextChars(v: number) { this.updateSetting("pageRantContextChars", v); }
 	updatePageRantOnlyWhenFocused(v: boolean) { this.updateSetting("pageRantOnlyWhenFocused", v); }
+
+	updateMaxVisitors(v: number): void {
+		this.updateSetting("maxVisitors", Math.max(1, Math.min(6, Math.round(v))));
+		this.syncVisitors();
+	}
 
 	updateChosenModel(selectedModel: string): void {
 		this.instanceData.selectedModel = selectedModel.trim() || "gpt-5-mini";

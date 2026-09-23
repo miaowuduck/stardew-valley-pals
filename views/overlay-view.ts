@@ -2,6 +2,8 @@ import type PetPlugin from "../main";
 import type { PetInstance } from "../core/types";
 import { createRenderablePet } from "../pets/factory";
 import { createRantLoopScheduler, createViewRantLoopOptions } from "../ui/rant-loop";
+import { createBanterRunner } from "../ui/banter";
+import type { BanterRunner } from "../ui/banter";
 
 export class OverlayPetView {
 	private overlayEl: HTMLElement;
@@ -10,9 +12,11 @@ export class OverlayPetView {
 	private resizeHandler: () => void;
 	private resizeTimer: ReturnType<typeof setTimeout> | null = null;
 	private rantLoop: ReturnType<typeof createRantLoopScheduler> | null = null;
+	private banterRunner: BanterRunner;
 
 	constructor(plugin: PetPlugin) {
 		this.plugin = plugin;
+		this.banterRunner = createBanterRunner(plugin);
 		this.overlayEl = activeDocument.body.createDiv({ cls: "pet-overlay-container" });
 		this.updateOverlayBounds();
 
@@ -61,7 +65,6 @@ export class OverlayPetView {
 			const pet = createRenderablePet(
 				this.overlayEl,
 				singlePet.type,
-				"overlay",
 				singlePet.id,
 				this.plugin.instanceData.petSize,
 				singlePet.name,
@@ -121,11 +124,16 @@ export class OverlayPetView {
 
 	startRantLoop() {
 		this.rantLoop = createRantLoopScheduler(
-			createViewRantLoopOptions(this.plugin, () =>
-				this.pets.map((p) => ({
-					type: p.type,
-					showSpeechBubble: (text: string) => p.pet.showSpeechBubble(text),
-				})),
+			createViewRantLoopOptions(
+				this.plugin,
+				() =>
+					this.pets
+						.filter((p) => !p.pet.isBusy())
+						.map((p) => ({
+							type: p.type,
+							showSpeechBubble: (text: string) => p.pet.showSpeechBubble(text),
+						})),
+				() => this.banterRunner.tryRunBanter(this.pets),
 			),
 		);
 		this.rantLoop.start();
