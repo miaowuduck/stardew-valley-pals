@@ -1,8 +1,9 @@
 import type PetPlugin from "../main";
 import type { PetInstance } from "../core/types";
+import { isNpcSpeciesType } from "../core/types";
 import { createRenderablePet } from "../pets/factory";
 import { createRantLoopScheduler, createViewRantLoopOptions } from "../ui/rant-loop";
-import { createBanterRunner } from "../ui/banter";
+import { createBanterRunner, DROP_ONTO_RADIUS_PX } from "../ui/banter";
 import type { BanterRunner } from "../ui/banter";
 
 export class OverlayPetView {
@@ -73,10 +74,33 @@ export class OverlayPetView {
 				this.plugin.getSpeechEnabledProvider(),
 			);
 			if (pet) {
+				pet.onDragEnd = () => this.handleDragEnd(singlePet.id);
 				this.pets.push({ id: singlePet.id, type: singlePet.type, pet });
 			}
 		} catch (error) {
 			console.error(`Failed to create overlay pet ${singlePet.id}:`, error);
+		}
+	}
+
+	/** Dropping one villager onto another forces a conversation between them. */
+	private handleDragEnd(draggedId: string) {
+		const dragged = this.pets.find((p) => p.id === draggedId);
+		if (!dragged || !isNpcSpeciesType(dragged.type)) return;
+
+		const pos = dragged.pet.getPosition();
+		let target: (typeof this.pets)[number] | undefined;
+		let bestDist = DROP_ONTO_RADIUS_PX;
+		for (const entry of this.pets) {
+			if (entry === dragged || !isNpcSpeciesType(entry.type) || entry.pet.isBusy()) continue;
+			const ep = entry.pet.getPosition();
+			const d = Math.hypot(pos.x - ep.x, pos.y - ep.y);
+			if (d < bestDist) {
+				bestDist = d;
+				target = entry;
+			}
+		}
+		if (target) {
+			void this.banterRunner.forceRunBanter(dragged, target, this.pets);
 		}
 	}
 

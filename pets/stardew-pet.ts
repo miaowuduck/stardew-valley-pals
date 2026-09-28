@@ -23,6 +23,8 @@ export class StardewPet {
 	private speechBubbleTimeout: ReturnType<typeof window.setTimeout> | null = null;
 	private actionLoopPaused = false;
 	private banterPaused = false;
+	/** True while walkTo() is steering the pet — the wander loop must yield. */
+	private directedWalking = false;
 	private readonly spritesheetUrl: string;
 	private readonly definition: StardewSpeciesDefinition;
 	private readonly petName: string;
@@ -31,6 +33,8 @@ export class StardewPet {
 	private isDragging = false;
 	private dragThreshold = 3;
 	private readonly isNPC: boolean;
+	/** Fired after a real drag ends (not a click). Set by the owning view. */
+	public onDragEnd: (() => void) | null = null;
 
 	constructor(
 		private container: Element,
@@ -261,6 +265,7 @@ export class StardewPet {
 
 			if (!hasDragged && (Math.abs(dx) > this.dragThreshold || Math.abs(dy) > this.dragThreshold)) {
 				hasDragged = true;
+				this.isDragging = true;
 				// Dismiss any active speech bubble — dragging takes priority.
 				this.clearSpeechBubble();
 				this.actionLoopPaused = true;
@@ -285,9 +290,13 @@ export class StardewPet {
 			activeDocument.removeEventListener("mouseup", onMouseUp);
 
 			if (hasDragged) {
+				this.isDragging = false;
 				this.petEl.removeClass("pet-dragging");
 				this.petEl.setCssStyles({ transition: "" });
 				if (!this.speechBubbleEl) this.actionLoopPaused = false;
+				// Let the view react — e.g. dropping one villager onto
+				// another starts a conversation.
+				this.onDragEnd?.();
 			} else {
 				this.showHeart();
 			}
@@ -526,7 +535,7 @@ export class StardewPet {
 		let blockedDir: "left" | "right" | "up" | "down" | null = null;
 
 		while (!this.isDestroyed) {
-			while (this.isPaused() && !this.isDestroyed) await wait(100);
+			while ((this.isPaused() || this.directedWalking) && !this.isDestroyed) await wait(100);
 			if (this.isDestroyed) break;
 
 			if (behavior === "walking") {
@@ -591,7 +600,7 @@ export class StardewPet {
 
 	private async startNPCWanderLoop() {
 		while (!this.isDestroyed) {
-			while (this.isPaused() && !this.isDestroyed) await wait(100);
+			while ((this.isPaused() || this.directedWalking) && !this.isDestroyed) await wait(100);
 			if (this.isDestroyed) break;
 
 			// Pick a random destination within wander radius (150–350 px)
@@ -616,11 +625,14 @@ export class StardewPet {
 		}
 	}
 
-	/** Walk toward a target position. Returns true when the target is reached. */
-	private async walkToward(tx: number, ty: number): Promise<boolean> {
+	/** Walk toward a target position. Returns true when the target is reached.
+	 *  A directed walk (banter) keeps going while paused-for-wander states are
+	 *  ignored; a wander walk aborts as soon as a directed walk takes over. */
+	private async walkToward(tx: number, ty: number, directed = false): Promise<boolean> {
 		const maxSteps = 60;
 		for (let i = 0; i < maxSteps; i++) {
-			if (this.isPaused() || this.isDestroyed) return false;
+			if (this.isDestroyed) return false;
+			if (directed ? this.banterPaused : (this.isPaused() || this.directedWalking)) return false;
 
 			const dx = tx - this.currentX;
 			const dy = ty - this.currentY;
@@ -675,13 +687,21 @@ export class StardewPet {
 		this.setFlip(x < this.currentX);
 	}
 
-	/** Walk to a position (brings two villagers together). Bounded by walkToward's step cap. */
+	/** Walk to a position (brings two villagers together). Bounded by walkToward's step cap.
+	 *  Suppresses the wander loop for the duration so the two don't fight over
+	 *  the pet's position (which previously made villagers pace back and forth
+	 *  for a long time before the dialogue started). */
 	public async walkTo(tx: number, ty: number): Promise<boolean> {
 		if (this.isDestroyed || this.banterPaused) return false;
 		const bounds = this.getContainerBounds();
 		const x = Math.max(bounds.minX, Math.min(bounds.maxX, tx));
 		const y = Math.max(bounds.minY, Math.min(bounds.maxY, ty));
-		return await this.walkToward(x, y);
+		this.directedWalking = true;
+		try {
+			return await this.walkToward(x, y, true);
+		} finally {
+			this.directedWalking = false;
+		}
 	}
 
 	/** Play the special animation once (onlooker reaction during banter). */

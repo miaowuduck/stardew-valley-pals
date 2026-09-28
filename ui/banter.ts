@@ -19,6 +19,8 @@ const SPEECH_GAP_PX = 45;     // how far apart the two villagers stand
 const ONLOOKER_RADIUS = 180;  // animals this close come watch
 const LINE_DURATION = 3400;   // ms each speech bubble stays up
 const LINE_GAP = 300;         // pause between speakers
+/** Drop one villager within this distance of another to force a chat. */
+export const DROP_ONTO_RADIUS_PX = 64;
 
 /**
  * Orchestrates villager-to-villager conversations ("banter").
@@ -30,23 +32,20 @@ const LINE_GAP = 300;         // pause between speakers
 export function createBanterRunner(plugin: PetPlugin) {
 	let running = false;
 
-	async function tryRunBanter(pets: BanterPetEntry[]): Promise<boolean> {
+	/**
+	 * Core flow: villagers `a` and `b` walk to a meeting point, face each
+	 * other, and exchange a few lines of dialogue while nearby animals watch.
+	 */
+	async function runBanter(
+		a: BanterPetEntry,
+		b: BanterPetEntry,
+		pets: BanterPetEntry[],
+	): Promise<boolean> {
 		if (running) return false;
-
-		const freeNpcs = pets.filter((p) => isNpcSpeciesType(p.type) && !p.pet.isBusy());
-		if (freeNpcs.length < 2) return false;
-
 		running = true;
 		const onlookers: BanterPetEntry[] = [];
-		let a: BanterPetEntry | undefined;
-		let b: BanterPetEntry | undefined;
 
 		try {
-			// Pick two random villagers
-			const shuffled = [...freeNpcs].sort(() => Math.random() - 0.5);
-			a = shuffled[0];
-			b = shuffled[1];
-
 			const pa = a.pet.getPosition();
 			const pb = b.pet.getPosition();
 			const midX = (pa.x + pb.x) / 2;
@@ -60,6 +59,7 @@ export function createBanterRunner(plugin: PetPlugin) {
 
 			// Nearby animals come to watch (silently)
 			for (const entry of pets) {
+				if (entry === a || entry === b) continue;
 				if (isNpcSpeciesType(entry.type) || entry.pet.isBusy()) continue;
 				if (distance(entry.pet.getPosition(), { x: midX, y: midY }) < ONLOOKER_RADIUS) {
 					onlookers.push(entry);
@@ -98,8 +98,8 @@ export function createBanterRunner(plugin: PetPlugin) {
 			console.error("Banter failed:", e);
 			return false;
 		} finally {
-			a?.pet.setPaused(false);
-			b?.pet.setPaused(false);
+			a.pet.setPaused(false);
+			b.pet.setPaused(false);
 			for (const o of onlookers) {
 				o.pet.setPaused(false);
 			}
@@ -107,8 +107,36 @@ export function createBanterRunner(plugin: PetPlugin) {
 		}
 	}
 
+	async function tryRunBanter(pets: BanterPetEntry[]): Promise<boolean> {
+		if (running) return false;
+
+		const freeNpcs = pets.filter((p) => isNpcSpeciesType(p.type) && !p.pet.isBusy());
+		if (freeNpcs.length < 2) return false;
+
+		// Pick two random villagers
+		const shuffled = [...freeNpcs].sort(() => Math.random() - 0.5);
+		return runBanter(shuffled[0], shuffled[1], pets);
+	}
+
+	/**
+	 * Forced conversation: the user dragged villager `a` onto villager `b`.
+	 * Manual gesture — ignores the banterEnabled setting, but still yields
+	 * to a conversation already in progress.
+	 */
+	async function forceRunBanter(
+		a: BanterPetEntry,
+		b: BanterPetEntry,
+		pets: BanterPetEntry[],
+	): Promise<boolean> {
+		if (running || a === b) return false;
+		// The dragged villager is exempt; the target must be free though.
+		if (b.pet.isBusy()) return false;
+		return runBanter(a, b, pets);
+	}
+
 	return {
 		tryRunBanter,
+		forceRunBanter,
 		isRunning: () => running,
 	};
 }

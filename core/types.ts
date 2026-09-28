@@ -15,8 +15,8 @@ export interface PetPluginData {
 	openAiApiKey: string;   // SecretStorage name, not the raw key
 	openAiBaseUrl: string;
 	pageRantEnabled: boolean;
-	pageRantMinMinutes: number;
-	pageRantMaxMinutes: number;
+	/** Average automatic speech bubbles per hour (Poisson-spaced). */
+	pageRantPerHour: number;
 	pageRantContextChars: number;
 	pageRantOnlyWhenFocused?: boolean;
 	selectedModel?: string;
@@ -28,6 +28,8 @@ export interface PetPluginData {
 	maxVisitors: number;
 	/** Allow two villagers to walk up to each other and chat. */
 	banterEnabled: boolean;
+	/** Percentage (0–100) of speech ticks that become villager conversations. */
+	banterPercent: number;
 	/** Let villagers form long-term memories about the user's notes. */
 	memoryEnabled: boolean;
 	/** Per-NPC core memories, keyed by NPC species type. */

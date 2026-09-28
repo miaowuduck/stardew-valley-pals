@@ -112,6 +112,8 @@ export default class PetPlugin extends Plugin {
 		delete (raw as { animatedBackground?: unknown }).animatedBackground;
 		delete raw.selectedBackground;
 		delete raw.petSpeechEnabled;
+		delete raw.pageRantMinMinutes;
+		delete raw.pageRantMaxMinutes;
 		this.instanceData = Object.assign({}, DEFAULT_DATA, raw) as PetPluginData;
 
 		if (!this.instanceData.nextPetIdCounters) {
@@ -434,14 +436,21 @@ export default class PetPlugin extends Plugin {
 			id: "clear-all-pets",
 			name: "Remove all pets",
 			callback: () => {
-				new ConfirmationModal(this.app, {
-					title: "Remove all pets?",
-					body: "This will remove every pet and NPC from your vault. This action cannot be undone. Continue?",
-					onConfirm: async () => {
-						await this.clearAllPets();
-						new Notice("All pets have been removed.");
-					},
-				}).open();
+				const modal = new ConfirmationModal(this.app);
+				modal.setTitle("Remove all pets?");
+				modal.setContent(
+					"This will remove every pet and NPC from your vault. This action cannot be undone. Continue?",
+				);
+				modal.addButton((btn) => {
+					btn.setButtonText("Remove all")
+						.setDestructive()
+						.onClick(async () => {
+							await this.clearAllPets();
+							new Notice("All pets have been removed.");
+						});
+				});
+				modal.addCancelButton();
+				modal.open();
 			},
 		});
 		this.addCommand({
@@ -731,9 +740,9 @@ export default class PetPlugin extends Plugin {
 	updatePageRantEnabled(v: boolean) { this.updateSetting("pageRantEnabled", v); }
 	updateNpcSpeechEnabled(v: boolean) { this.updateSetting("npcSpeechEnabled", v); }
 	updateBanterEnabled(v: boolean) { this.updateSetting("banterEnabled", v); }
+	updateBanterPercent(v: number) { this.updateSetting("banterPercent", Math.max(0, Math.min(100, Math.round(v)))); }
 	updateMemoryEnabled(v: boolean) { this.updateSetting("memoryEnabled", v); }
-	updatePageRantMinMinutes(v: number) { this.updateSetting("pageRantMinMinutes", v); }
-	updatePageRantMaxMinutes(v: number) { this.updateSetting("pageRantMaxMinutes", v); }
+	updatePageRantPerHour(v: number) { this.updateSetting("pageRantPerHour", Math.max(0.5, Math.min(60, v))); }
 	updatePageRantContextChars(v: number) { this.updateSetting("pageRantContextChars", v); }
 	updatePageRantOnlyWhenFocused(v: boolean) { this.updateSetting("pageRantOnlyWhenFocused", v); }
 

@@ -12,10 +12,8 @@ interface RantLoopOptions {
 	isEnabled: () => boolean;
 	/** Whether to suppress rants when the window is not focused. */
 	onlyWhenFocused: () => boolean;
-	/** Minimum delay between rants in milliseconds. */
-	getMinMs: () => number;
-	/** Maximum delay between rants in milliseconds. */
-	getMaxMs: () => number;
+	/** Draw the delay in milliseconds until the next speech event. */
+	sampleDelayMs: () => number;
 	/** Current list of pets/NPCs that can speak. */
 	getTargets: () => RantTarget[];
 	/** Produce the text a given pet type should say. */
@@ -28,7 +26,7 @@ interface RantLoopOptions {
 	 */
 	tryBanter?: () => Promise<boolean>;
 	/** Probability (0–1) that a tick becomes a banter attempt. */
-	banterChance?: number;
+	banterChance?: () => number;
 }
 
 // ── Scheduler ──────────────────────────────────────────────────
@@ -47,9 +45,7 @@ export function createRantLoopScheduler(opts: RantLoopOptions) {
 	function scheduleNext() {
 		if (stopped) return;
 
-		const minMs = opts.getMinMs();
-		const maxMs = Math.max(minMs, opts.getMaxMs());
-		const delay = Math.floor(Math.random() * (maxMs - minMs + 1)) + minMs;
+		const delay = opts.sampleDelayMs();
 
 		timeoutId = window.setTimeout(() => {
 			void (async () => {
@@ -62,7 +58,7 @@ export function createRantLoopScheduler(opts: RantLoopOptions) {
 					}
 
 					// Occasionally two villagers strike up a conversation instead
-					if (opts.tryBanter && Math.random() < (opts.banterChance ?? 0.4)) {
+					if (opts.tryBanter && Math.random() < (opts.banterChance?.() ?? 0.4)) {
 						const bantered = await opts.tryBanter().catch((e) => {
 							console.error("Banter attempt failed:", e);
 							return false;
@@ -114,27 +110,22 @@ export function createViewRantLoopOptions(
 	return {
 		isEnabled: () => plugin.instanceData.pageRantEnabled,
 		onlyWhenFocused: () => plugin.instanceData.pageRantOnlyWhenFocused ?? true,
-		getMinMs: () => {
-			const minMinutes = Math.min(
-				plugin.instanceData.pageRantMinMinutes || 5,
-				plugin.instanceData.pageRantMaxMinutes || 20,
-			);
-			return minMinutes * 60 * 1000;
-		},
-		getMaxMs: () => {
-			const maxMinutes = Math.max(
-				plugin.instanceData.pageRantMinMinutes || 5,
-				plugin.instanceData.pageRantMaxMinutes || 20,
-			);
-			return maxMinutes * 60 * 1000;
+		sampleDelayMs: () => {
+			const perHour = Math.max(0.5, plugin.instanceData.pageRantPerHour || 4);
+			const meanMs = (60 * 60 * 1000) / perHour;
+			// Exponential (Poisson) spacing: events average `perHour` per
+			// hour with natural, memoryless variation. Clamped to avoid
+			// machine-gun bursts and absurdly long silences.
+			const delay = -Math.log(1 - Math.random()) * meanMs;
+			return Math.min(Math.max(delay, 30 * 1000), 4 * meanMs);
 		},
 		getTargets: getPets,
 		getRantText: (type: string) => plugin.getPageRantText("timer", type),
 		isSpeechEnabled: (type: string) => plugin.isSpeechEnabled(type),
-		// Checked per tick so the settings toggle applies without a reload
+		// Checked per tick so the settings toggles apply without a reload
 		tryBanter: tryBanter
 			? () => (plugin.instanceData.banterEnabled ? tryBanter() : Promise.resolve(false))
 			: undefined,
-		banterChance: 0.4,
+		banterChance: () => (plugin.instanceData.banterPercent ?? 40) / 100,
 	};
 }

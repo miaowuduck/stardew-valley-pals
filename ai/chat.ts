@@ -43,15 +43,11 @@ function buildPageRantPrompt(
 ${personaSection}
 笔记标题：${pageLabel}
 触发：${trigger === "timer" ? "你路过瞟了一眼" : "用户右键点了你一下"}
+用户当地时间：${getLocalTimeDescription(true)}
 ${contextSection}
 ${selectionSection}
 ${activitySection}
 ${memorySection}
-
-语气示例（星露谷式的日常台词）：
-- "……打算在这儿站一整天吗？我们有些人还有活要干。"
-- "今年的雨水不错，庄稼长得好。"
-- "别在意我，你忙你的。"
 
 要求：
 - 只输出一句台词，10 到 28 个汉字
@@ -59,22 +55,19 @@ ${memorySection}
 - 如果有选中文字，优先针对选中内容反应；否则针对笔记内容
 - 可以自然地引用你记得的事情，但不要生硬罗列
 - 禁止旁白、动作描写、引号、emoji、"作为角色"之类的出戏表达
-- 不要每句都提自己的招牌话题，根据笔记内容灵活反应`;
+- 不要每句都提自己的招牌话题，根据笔记内容灵活反应
+- 如果提到时间或打招呼，与用户当地时间保持一致，问候方式自然变化，不要固定套路`;
 	}
 
 	return `You are ${npcName} from Stardew Valley, hanging around the user's Obsidian note. Say one line of dialogue that could appear verbatim in the game's dialogue files.
 ${personaSection}
 Note title: ${pageLabel}
 Trigger: ${trigger === "timer" ? "you glanced at the note while passing by" : "the user right-clicked you"}
+User's local time: ${getLocalTimeDescription(false)}
 ${contextSection}
 ${selectionSection}
 ${activitySection}
 ${memorySection}
-
-Style reference (everyday Stardew dialogue):
-- "...Going to stand there all day? Some of us have work to do."
-- "The rain's been good for the crops this year."
-- "Don't mind me. Just passing through."
 
 Requirements:
 - Exactly 1 line of dialogue, 8 to 18 words
@@ -82,7 +75,8 @@ Requirements:
 - React to the selected text if any, otherwise to the note content
 - You may naturally draw on things you remember about the user, but don't list them
 - No narration, no stage directions, no quotation marks, no emojis, no breaking character
-- Don't lean on your signature topic every time — react to what's actually on the page`;
+- Don't lean on your signature topic every time — react to what's actually on the page
+- If you mention the time or greet the user, stay consistent with their local time; vary greetings naturally instead of falling back on one stock phrase`;
 }
 
 function cleanSingleLine(text: string): string {
@@ -92,6 +86,29 @@ function cleanSingleLine(text: string): string {
 		.split(/\r?\n/)
 		.map((line) => line.trim())
 		.find((line) => line.length > 0) || "";
+}
+
+/** The user's local date/time with a coarse daypart, for time-aware dialogue. */
+function getLocalTimeDescription(useChinese: boolean): string {
+	const now = new Date();
+	const h = now.getHours();
+	const two = (n: number) => (n < 10 ? `0${n}` : `${n}`);
+	const hhmm = `${two(h)}:${two(now.getMinutes())}`;
+
+	if (useChinese) {
+		const part =
+			h < 5 ? "深夜" : h < 9 ? "早上" : h < 12 ? "上午" :
+			h < 14 ? "中午" : h < 18 ? "下午" : h < 22 ? "晚上" : "深夜";
+		const weekday = "日一二三四五六"[now.getDay()];
+		return `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日 星期${weekday} ${hhmm}（${part}）`;
+	}
+
+	const part =
+		h < 5 ? "late at night" : h < 12 ? "morning" :
+		h < 17 ? "afternoon" : h < 21 ? "evening" : "night";
+	const weekday = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][now.getDay()];
+	const date = now.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+	return `${weekday}, ${date}, ${hhmm} (${part})`;
 }
 
 export async function generatePageRantText(
@@ -161,16 +178,19 @@ ${who(nameA, personaA)}
 ${who(nameB, personaB)}
 
 场景：用户在写笔记《${pageLabel}》，两人正好路过。
+用户当地时间：${getLocalTimeDescription(true)}
 ${contextSection}
 ${memoryBlock(nameA, memoriesA)}
 ${memoryBlock(nameB, memoriesB)}
 
 要求：
 - 2 到 4 轮对话，每句 8 到 26 个汉字
-- 就是村民之间的日常寒暄：天气、庄稼、酒馆、镇上的八卦，或提一嘴用户最近在忙的事
+- 就是村民之间的日常闲聊，话题由两人自然发挥，不要每次雷同
+- 如果打招呼或提到时间，与用户当地时间保持一致，问候方式自然变化，不要固定套路
 - 两个人都要用自己的口吻说话，像游戏对话文本
 - 不要旁白、不要动作描写、不要解释
-- 严格输出 JSON：{"lines": [{"speaker": "A", "text": "..."}, {"speaker": "B", "text": "..."}]}`;
+- 严格输出 JSON：{"lines": [{"speaker": "A", "text": "..."}, {"speaker": "B", "text": "..."}]}
+- speaker 只能填 "A" 或 "B"：A 是「${nameA}」，B 是「${nameB}」，不要填角色名`;
 	}
 
 	return `Write a short Stardew Valley-style exchange: ${nameA} and ${nameB} bump into each other on the road and chat for a couple of lines.
@@ -180,20 +200,60 @@ ${who(nameA, personaA)}
 ${who(nameB, personaB)}
 
 Scene: the user is writing a note called "${pageLabel}" and the two villagers happen to pass by.
+User's local time: ${getLocalTimeDescription(false)}
 ${contextSection}
 ${memoryBlock(nameA, memoriesA)}
 ${memoryBlock(nameB, memoriesB)}
 
 Requirements:
 - 2 to 4 turns, each line 6 to 18 words
-- Everyday villager small talk: weather, crops, the saloon, town gossip — or a passing remark about what the user has been working on
+- Everyday villager small talk; let the two choose topics naturally rather than repeating the same themes every time
+- If anyone greets or mentions the time, stay consistent with the user's local time; vary greetings naturally instead of falling back on one stock phrase
 - Each speaker uses their own voice, like lines from the game's dialogue files
 - No narration, no stage directions, no explanation
-- Output strict JSON: {"lines": [{"speaker": "A", "text": "..."}, {"speaker": "B", "text": "..."}]}`;
+- Output strict JSON: {"lines": [{"speaker": "A", "text": "..."}, {"speaker": "B", "text": "..."}]}
+- speaker must be the literal letter "A" or "B": A is ${nameA}, B is ${nameB} — never use character names`;
+}
+
+/**
+ * Map whatever the model put in `speaker` back to "A" or "B".
+ * Models often ignore the instructions and emit the character's name
+ * ("刘易斯", "Lewis") instead of the literal "A"/"B" — previously those all
+ * collapsed to "A", so every bubble appeared over one villager's head.
+ */
+function resolveDialogueSpeaker(
+	raw: unknown,
+	nameA: string,
+	nameB: string,
+	prev: "A" | "B" | null,
+): "A" | "B" | null {
+	const v = String(raw ?? "").trim();
+	const upper = v.toUpperCase();
+	if (upper === "A" || upper === "B") return upper;
+
+	const norm = (s: string) => s.replace(/[「」『』"' \s]/g, "").toLowerCase();
+	const nv = norm(v);
+	const na = norm(nameA);
+	const nb = norm(nameB);
+	if (nv) {
+		if (na && (nv === na || nv.includes(na) || na.includes(nv))) return "A";
+		if (nb && (nv === nb || nv.includes(nb) || nb.includes(nv))) return "B";
+	}
+	// Unknown speaker: inside a parsed dialogue, alternate with the previous
+	// line so both villagers talk; at the top level (no context) give up.
+	return prev === null ? null : prev === "A" ? "B" : "A";
+}
+
+/** If every line ended up with the same speaker, alternate them. */
+function ensureBothSpeakers(lines: BanterLine[]): BanterLine[] {
+	if (lines.length > 1 && lines.every((l) => l.speaker === lines[0].speaker)) {
+		return lines.map((l, i) => ({ ...l, speaker: (i % 2 === 0 ? "A" : "B") as "A" | "B" }));
+	}
+	return lines;
 }
 
 /** Parse the model's dialogue JSON, falling back to line splitting. */
-function parseDialogue(raw: string): BanterLine[] {
+function parseDialogue(raw: string, nameA: string, nameB: string): BanterLine[] {
 	const cleaned = raw.replace(/```(?:json)?/g, "").trim();
 
 	// Preferred: strict JSON
@@ -203,31 +263,40 @@ function parseDialogue(raw: string): BanterLine[] {
 		if (start !== -1 && end > start) {
 			const parsed = JSON.parse(cleaned.slice(start, end + 1)) as { lines?: { speaker?: string; text?: string }[] };
 			if (Array.isArray(parsed.lines)) {
+				let prev: "A" | "B" | null = null;
 				const lines = parsed.lines
 					.filter((l) => l && typeof l.text === "string" && l.text.trim())
-					.map((l) => ({
-						speaker: (String(l.speaker).trim().toUpperCase() === "B" ? "B" : "A") as "A" | "B",
-						text: cleanSingleLine(l.text as string),
-					}))
+					.map((l) => {
+						const speaker = resolveDialogueSpeaker(l.speaker, nameA, nameB, prev) ?? "A";
+						prev = speaker;
+						return { speaker, text: cleanSingleLine(l.text as string) };
+					})
 					.filter((l) => l.text);
-				if (lines.length > 0) return lines.slice(0, 6);
+				if (lines.length > 0) return ensureBothSpeakers(lines).slice(0, 6);
 			}
 		}
 	} catch (e) {
 		console.warn("Failed to parse banter JSON, falling back to line split:", e);
 	}
 
-	// Fallback: "A: text" / "B: text" per line
+	// Fallback: "A: text" / "B: text" (or "Name: text") per line
 	const lines: BanterLine[] = [];
+	let prev: "A" | "B" | null = null;
 	for (const rawLine of cleaned.split(/\r?\n/)) {
-		const match = rawLine.match(/^\s*(A|B)\s*[:：.]\s*(.+)$/i);
+		const match = rawLine.match(/^\s*([A-Za-z]|[^\s:：.]{1,12})\s*[:：.]\s*(.+)$/);
 		if (match) {
+			// Skip lines whose prefix isn't a recognisable speaker (likely prose)
+			const speaker = resolveDialogueSpeaker(match[1], nameA, nameB, prev);
+			if (speaker === null) continue;
 			const text = cleanSingleLine(match[2]);
-			if (text) lines.push({ speaker: match[1].toUpperCase() === "B" ? "B" : "A", text });
+			if (text) {
+				prev = speaker;
+				lines.push({ speaker, text });
+			}
 		}
 		if (lines.length >= 6) break;
 	}
-	return lines;
+	return ensureBothSpeakers(lines);
 }
 
 export async function generateDialogue(
@@ -251,7 +320,7 @@ export async function generateDialogue(
 			model: selectedModel,
 			messages: [{ role: "user", content: prompt }],
 		});
-		return parseDialogue(response.choices[0].message.content || "");
+		return parseDialogue(response.choices[0].message.content || "", nameA, nameB);
 	} catch (e: unknown) {
 		console.error("Banter dialogue generation failed:", e);
 		return [];
