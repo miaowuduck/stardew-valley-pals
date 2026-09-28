@@ -480,11 +480,10 @@ export class PetSettingTab extends PluginSettingTab {
 					this.plugin.showAddPetCommand(() => this.update());
 				},
 			},
-			onDelete: async (index) => {
+			onDelete: (index) => {
 				const pet = pets[index];
 				if (!pet) return;
-				await this.plugin.removePetById(pet.id);
-				this.update();
+				void this.plugin.removePetById(pet.id).then(() => this.update());
 			},
 			items: pets.map((pet) => ({
 				name: pet.name,
@@ -507,11 +506,10 @@ export class PetSettingTab extends PluginSettingTab {
 
 		return {
 			type: "list",
-			onDelete: async (index) => {
+			onDelete: (index) => {
 				const entry = entries[index];
 				if (!entry) return;
-				await this.plugin.clearNpcMemories(entry.type);
-				this.update();
+				void this.plugin.clearNpcMemories(entry.type).then(() => this.update());
 			},
 			items: entries.map(({ type, memories }) => ({
 				name:

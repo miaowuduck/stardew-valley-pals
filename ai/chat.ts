@@ -247,7 +247,7 @@ function resolveDialogueSpeaker(
 /** If every line ended up with the same speaker, alternate them. */
 function ensureBothSpeakers(lines: BanterLine[]): BanterLine[] {
 	if (lines.length > 1 && lines.every((l) => l.speaker === lines[0].speaker)) {
-		return lines.map((l, i) => ({ ...l, speaker: (i % 2 === 0 ? "A" : "B") as "A" | "B" }));
+		return lines.map((l, i) => ({ ...l, speaker: i % 2 === 0 ? "A" as const : "B" as const }));
 	}
 	return lines;
 }

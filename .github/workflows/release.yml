@@ -1,0 +1,50 @@
+name: Release
+
+# Builds the plugin on every version tag, attests the build provenance of
+# the release assets (so users can cryptographically verify they were built
+# from this repository), and creates the GitHub release.
+
+on:
+  push:
+    tags:
+      - "*"
+
+permissions:
+  contents: write      # create the release and upload assets
+  id-token: write      # OIDC token for artifact attestation
+  attestations: write  # publish build-provenance attestations
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Attest build provenance of release assets
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            main.js
+            manifest.json
+            styles.css
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: >-
+          gh release create "$GITHUB_REF_NAME"
+          main.js manifest.json styles.css
+          --title "$GITHUB_REF_NAME"
+          --generate-notes

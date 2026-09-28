@@ -107,9 +107,9 @@ export default class PetPlugin extends Plugin {
 	// ── Settings persistence ───────────────────────────────────
 
 	async loadSettings() {
-		const raw: Record<string, unknown> = await this.loadData() ?? {};
+		const raw = (await this.loadData() ?? {}) as Record<string, unknown>;
 		// Clean up stale fields from removed features
-		delete (raw as { animatedBackground?: unknown }).animatedBackground;
+		delete raw.animatedBackground;
 		delete raw.selectedBackground;
 		delete raw.petSpeechEnabled;
 		delete raw.pageRantMinMinutes;

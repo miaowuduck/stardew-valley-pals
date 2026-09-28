@@ -240,8 +240,8 @@ export class StardewPet {
 					}
 					this.showHeart();
 				})
-				.catch((e) => {
-					const errMsg = e?.message || String(e);
+				.catch((e: unknown) => {
+					const errMsg = e instanceof Error ? e.message : String(e);
 					console.error("Right-click rant failed:", e);
 					new Notice(`AI 模型调用失败: ${errMsg}`, 5000);
 					this.showHeart();
@@ -331,11 +331,11 @@ export class StardewPet {
 		// Freeze the pet at its current visual position (same logic as hover).
 		this.freezeAtCurrentPosition();
 
-		const bubble = activeDocument.createElement("div");
-		bubble.className = "pet-speech-bubble";
-		bubble.setText(text);
+		const bubble = (this.container as HTMLElement).createDiv({
+			cls: "pet-speech-bubble",
+			text: text,
+		});
 		bubble.addClass("pet-speech-bubble--measuring");
-		this.container.appendChild(bubble);
 		this.speechBubbleEl = bubble;
 
 		// One rAF for the bubble's own layout, then position & show.
