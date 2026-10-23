@@ -253,6 +253,7 @@ export class StardewPet {
 		if (event.button !== 0) return;
 		event.preventDefault();
 
+		const doc = this.container.ownerDocument;
 		let hasDragged = false;
 		const startX = event.clientX;
 		const startY = event.clientY;
@@ -286,8 +287,8 @@ export class StardewPet {
 		};
 
 		const onMouseUp = () => {
-			activeDocument.removeEventListener("mousemove", onMouseMove);
-			activeDocument.removeEventListener("mouseup", onMouseUp);
+			doc.removeEventListener("mousemove", onMouseMove);
+			doc.removeEventListener("mouseup", onMouseUp);
 
 			if (hasDragged) {
 				this.isDragging = false;
@@ -302,8 +303,8 @@ export class StardewPet {
 			}
 		};
 
-		activeDocument.addEventListener("mousemove", onMouseMove);
-		activeDocument.addEventListener("mouseup", onMouseUp);
+		doc.addEventListener("mousemove", onMouseMove);
+		doc.addEventListener("mouseup", onMouseUp);
 	}
 
 	private showHeart() {
@@ -418,16 +419,10 @@ export class StardewPet {
 
 	public async clampToContainer() {
 		if (!this.petEl || this.isDestroyed) return;
-		const petWidth = this.spriteFrameWidth * this.definition.scale;
-		const petHeight = this.spriteFrameHeight * this.definition.scale;
-		const containerWidth = (this.container as HTMLElement).offsetWidth;
-		const containerHeight = (this.container as HTMLElement).offsetHeight;
-		const minX = petWidth / 2;
-		const maxX = containerWidth - petWidth / 2;
-		const minY = petHeight / 2;
-		const maxY = containerHeight - petHeight / 2;
-		const clampedX = Math.max(minX, Math.min(maxX, this.currentX));
-		const clampedY = Math.max(minY, Math.min(maxY, this.currentY));
+		const bounds = this.getContainerBounds();
+		if (!bounds) return;
+		const clampedX = Math.max(bounds.minX, Math.min(bounds.maxX, this.currentX));
+		const clampedY = Math.max(bounds.minY, Math.min(bounds.maxY, this.currentY));
 		if (clampedX !== this.currentX) {
 			this.currentX = clampedX;
 		}
@@ -441,8 +436,9 @@ export class StardewPet {
 	}
 
 	private freezeAtCurrentPosition() {
-		const computedLeft = window.getComputedStyle(this.petEl).left;
-		const computedTop = window.getComputedStyle(this.petEl).top;
+		const view = this.container.ownerDocument.defaultView ?? window;
+		const computedLeft = view.getComputedStyle(this.petEl).left;
+		const computedTop = view.getComputedStyle(this.petEl).top;
 		this.petEl.setCssStyles({ transition: "" });
 		this.petEl.setCssProps({ "--left": computedLeft });
 		this.petEl.setCssProps({ "--top": computedTop });
@@ -461,17 +457,28 @@ export class StardewPet {
 	//   Pick a random destination within a wander radius, walk toward it
 	//   along the primary axis, pause on arrival, then pick a new target.
 
-	private getContainerBounds() {
+	/**
+	 * Bounds for wandering, or null when the container cannot host a pet right
+	 * now (not attached to the DOM, zero-sized, or too small for the sprite).
+	 * Callers must pause instead of walking when this returns null — otherwise
+	 * an inverted min/max range makes every step a no-op and the behaviour
+	 * loops spin on resolved promises, freezing the renderer.
+	 */
+	private getContainerBounds(): { minX: number; maxX: number; minY: number; maxY: number } | null {
+		const el = this.container as HTMLElement;
+		if (!el || !el.isConnected) return null;
+		const cw = el.offsetWidth;
+		const ch = el.offsetHeight;
+		if (cw <= 0 || ch <= 0) return null;
+
 		const pw = this.spriteFrameWidth * this.definition.scale;
 		const ph = this.spriteFrameHeight * this.definition.scale;
-		const cw = (this.container as HTMLElement).offsetWidth;
-		const ch = (this.container as HTMLElement).offsetHeight;
-		return {
-			minX: pw / 2,
-			maxX: cw - pw / 2,
-			minY: ph / 2,
-			maxY: ch - ph / 2,
-		};
+		const minX = pw / 2;
+		const maxX = cw - pw / 2;
+		const minY = ph / 2;
+		const maxY = ch - ph / 2;
+		if (maxX < minX || maxY < minY) return null;
+		return { minX, maxX, minY, maxY };
 	}
 
 	/** True when wandering should hold still (hover, drag, bubble, or banter). */
@@ -484,6 +491,7 @@ export class StardewPet {
 		if (this.isPaused() || this.isDestroyed) return false;
 
 		const bounds = this.getContainerBounds();
+		if (!bounds) return false;
 		const stepDist = this.definition.moveDist * this.speedMultiplier;
 		let tx = this.currentX;
 		let ty = this.currentY;
@@ -538,6 +546,13 @@ export class StardewPet {
 			while ((this.isPaused() || this.directedWalking) && !this.isDestroyed) await wait(100);
 			if (this.isDestroyed) break;
 
+			// Container detached or collapsed (e.g. its window closed). Idle
+			// instead of walking into invalid bounds — see getContainerBounds.
+			if (!this.getContainerBounds()) {
+				await wait(500);
+				continue;
+			}
+
 			if (behavior === "walking") {
 				facing = this.pickDirection(blockedDir ?? undefined);
 				blockedDir = null;
@@ -559,7 +574,12 @@ export class StardewPet {
 					if (Math.random() < 0.02) break;
 				}
 
-				if (!moved) continue; // stuck — retry with new direction
+				if (!moved) {
+					// Yield to the event loop before retrying: when no step can
+					// succeed an un-awaited `continue` becomes a microtask spin.
+					await wait(250);
+					continue;
+				}
 
 				// After a walk sequence, decide what to do next
 				const rand = Math.random();
@@ -603,8 +623,14 @@ export class StardewPet {
 			while ((this.isPaused() || this.directedWalking) && !this.isDestroyed) await wait(100);
 			if (this.isDestroyed) break;
 
-			// Pick a random destination within wander radius (150–350 px)
+			// Container detached or collapsed (e.g. its window closed).
 			const bounds = this.getContainerBounds();
+			if (!bounds) {
+				await wait(500);
+				continue;
+			}
+
+			// Pick a random destination within wander radius (150–350 px)
 			const radius = 150 + Math.random() * 200;
 			const rawTx = this.currentX + (Math.random() - 0.5) * radius * 2;
 			const rawTy = this.currentY + (Math.random() - 0.5) * radius * 2;
@@ -613,7 +639,11 @@ export class StardewPet {
 
 			// Walk toward the target (primary-axis-first, creating L-shaped paths)
 			const arrived = await this.walkToward(targetX, targetY);
-			if (!arrived) continue;
+			if (!arrived) {
+				// Always yield — see the identical guard in the pet loop.
+				await wait(250);
+				continue;
+			}
 
 			// Pause at destination (3–8 seconds, like SV's squarePauseTotal)
 			void this.playAnimation("idle");
@@ -694,6 +724,7 @@ export class StardewPet {
 	public async walkTo(tx: number, ty: number): Promise<boolean> {
 		if (this.isDestroyed || this.banterPaused) return false;
 		const bounds = this.getContainerBounds();
+		if (!bounds) return false;
 		const x = Math.max(bounds.minX, Math.min(bounds.maxX, tx));
 		const y = Math.max(bounds.minY, Math.min(bounds.maxY, ty));
 		this.directedWalking = true;

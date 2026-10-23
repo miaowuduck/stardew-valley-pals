@@ -11,37 +11,50 @@ export class OverlayPetView {
 	private plugin: PetPlugin;
 	pets: { id: string; type: string; pet: NonNullable<ReturnType<typeof createRenderablePet>> }[] = [];
 	private resizeHandler: () => void;
-	private resizeTimer: ReturnType<typeof setTimeout> | null = null;
+	private resizeTimer: number | null = null;
 	private rantLoop: ReturnType<typeof createRantLoopScheduler> | null = null;
 	private banterRunner: BanterRunner;
+	/**
+	 * The document/window the overlay lives in. Always the main workspace
+	 * window — never `activeDocument`, which can point at a popout (e.g. the
+	 * settings window opened by Obsidian 1.14+) and would put the pets inside
+	 * that popout. If the popout then closes, the pets' DOM vanishes while
+	 * their behaviour loops keep running, which used to hang the renderer.
+	 */
+	private readonly doc: Document;
+	private readonly win: Window;
 
 	constructor(plugin: PetPlugin) {
 		this.plugin = plugin;
 		this.banterRunner = createBanterRunner(plugin);
-		this.overlayEl = activeDocument.body.createDiv({ cls: "pet-overlay-container" });
+		const workspaceEl = plugin.app.workspace.containerEl;
+		this.doc = workspaceEl.ownerDocument;
+		this.win = this.doc.defaultView ?? window;
+		this.overlayEl = this.doc.body.createDiv({ cls: "pet-overlay-container" });
 		this.updateOverlayBounds();
 
 		this.resizeHandler = () => {
-			if (this.resizeTimer !== null) window.clearTimeout(this.resizeTimer);
-			this.resizeTimer = window.setTimeout(async () => {
+			if (this.resizeTimer !== null) this.win.clearTimeout(this.resizeTimer);
+			this.resizeTimer = this.win.setTimeout(async () => {
 				this.resizeTimer = null;
 				this.updateOverlayBounds();
 				await Promise.all(this.pets.map(({ pet }) => pet.clampToContainer()));
 			}, 100);
 		};
-		window.addEventListener("resize", this.resizeHandler);
+		this.win.addEventListener("resize", this.resizeHandler);
 	}
 
 	private updateOverlayBounds() {
 		const selectors = [".titlebar", ".workspace-tab-header-container"];
 		const candidates: HTMLElement[] = [];
 		for (const sel of selectors) {
-			candidates.push(...Array.from(activeDocument.body.querySelectorAll<HTMLElement>(sel)));
+			candidates.push(...Array.from(this.doc.body.querySelectorAll<HTMLElement>(sel)));
 		}
 
+		const view = this.doc.defaultView ?? window;
 		let topOffset = 0;
 		for (const el of candidates) {
-			const style = getComputedStyle(el);
+			const style = view.getComputedStyle(el);
 			const region =
 				style.getPropertyValue("-webkit-app-region") ||
 				(style as unknown as Record<string, string>).webkitAppRegion ||
@@ -54,7 +67,7 @@ export class OverlayPetView {
 
 		// Incorporate macOS traffic light offset (since Obsidian 1.12.0)
 		const trafficY = parseFloat(
-			getComputedStyle(activeDocument.body).getPropertyValue("--traffic-lights-offset-y")
+			view.getComputedStyle(this.doc.body).getPropertyValue("--traffic-lights-offset-y")
 		) || 0;
 		if (trafficY > topOffset) topOffset = trafficY;
 
@@ -133,9 +146,9 @@ export class OverlayPetView {
 	}
 
 	destroy() {
-		window.removeEventListener("resize", this.resizeHandler);
+		this.win.removeEventListener("resize", this.resizeHandler);
 		if (this.resizeTimer !== null) {
-			window.clearTimeout(this.resizeTimer);
+			this.win.clearTimeout(this.resizeTimer);
 			this.resizeTimer = null;
 		}
 		this.rantLoop?.stop();

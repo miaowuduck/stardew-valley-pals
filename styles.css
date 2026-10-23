@@ -21,7 +21,9 @@
 	width: 100vw;
 	height: calc(100vh - var(--overlay-top, 0px));
 	pointer-events: none;
-	z-index: 9999;
+	/* Above the workspace (sidedock 10 / status bar 15) but below popovers
+	   (30) and modals (50), so dialogs and the settings UI always win. */
+	z-index: calc(var(--layer-popover, 30) - 5);
 	overflow: hidden;
 }
 
