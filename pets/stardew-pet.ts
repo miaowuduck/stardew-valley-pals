@@ -1,5 +1,6 @@
 import { Notice } from "obsidian";
 import { heartAsset } from "./pet-assets";
+import { SpriteCanvas } from "./sprite-canvas";
 import { getStardewSpeciesSprite, isNpcSpeciesType, toAnimation } from "./stardew-species";
 import type { StardewSpeciesDefinition } from "./stardew-species";
 
@@ -11,8 +12,9 @@ export class StardewPet {
 	public petEl!: HTMLElement;
 	public scale: number;
 	public speedMultiplier: number;
-	private spriteFrameWidth = 16;
-	private spriteFrameHeight = 16;
+	private readonly spriteFrameWidth: number;
+	private readonly spriteFrameHeight: number;
+	private spriteCanvas: SpriteCanvas | null = null;
 	private currentX!: number;
 	private currentY!: number;
 	private direction = 1;
@@ -48,6 +50,8 @@ export class StardewPet {
 	) {
 		this.definition = definition;
 		this.scale = scale;
+		this.spriteFrameWidth = definition.frameWidth || definition.frameSize || 16;
+		this.spriteFrameHeight = definition.frameHeight || definition.frameSize || 16;
 		this.speedMultiplier = speedMultiplier;
 		this.petName = petName;
 		this.rightClickTextProvider = rightClickTextProvider;
@@ -78,71 +82,43 @@ export class StardewPet {
 
 	private createPetElement(petId: string): HTMLElement {
 		const el = this.container.createDiv({ cls: "pet stardew-pet", attr: { "data-pet-id": petId } });
-		const fw = (this.definition.frameWidth || this.definition.frameSize || 16) * this.definition.scale;
-		const fh = (this.definition.frameHeight || this.definition.frameSize || 16) * this.definition.scale;
 		el.setCssProps({
 			"--left": `${this.currentX}px`,
 			"--top": `${this.currentY}px`,
-			"--pet-size": `${fh}px`,
-			"--pet-width": `${fw}px`,
-			"--pet-height": `${fh}px`,
-			"--scale-x": `${this.direction}`,
-			"--bubble-scale-x": `${1 / this.direction}`,
-			"--scale": `${this.scale}`,
 			"--heart-url": `url(${heartAsset})`,
 		});
+
+		const sprite = new SpriteCanvas(
+			el.ownerDocument,
+			this.spriteFrameWidth,
+			this.spriteFrameHeight,
+			this.pixelScale,
+			this.definition.variantOffset ?? [0, 0],
+		);
+		this.spriteCanvas = sprite;
+		el.appendChild(sprite.el);
+
 		el.createDiv({ cls: "pet-name-tooltip" }).setText(this.petName);
 		return el;
 	}
 
-	private async initializeSprite() {
-		const img = new Image();
-		img.src = this.spritesheetUrl;
-		await new Promise<void>((resolve, reject) => {
-			img.onload = () => resolve();
-			img.onerror = () => reject(new Error(`Failed to load Stardew pet sprite: ${this.definition.sprite}`));
-		});
-
-		const maxRow = this.getMaxRow();
-		const inferredFrame = maxRow >= 0 ? Math.floor(img.naturalHeight / (maxRow + 1)) : 16;
-		this.spriteFrameWidth = this.definition.frameWidth || this.definition.frameSize || inferredFrame;
-		this.spriteFrameHeight = this.definition.frameHeight || this.definition.frameSize || inferredFrame;
-
-		this.petEl.setCssStyles({
-			backgroundImage: `url('${this.spritesheetUrl}')`,
-			backgroundRepeat: "no-repeat",
-			backgroundSize: `${img.naturalWidth * this.definition.scale}px ${img.naturalHeight * this.definition.scale}px`,
-			imageRendering: "pixelated",
-		});
-		this.petEl.setCssProps({
-			"--pet-size": `${this.spriteFrameHeight * this.definition.scale}px`,
-			"--pet-width": `${this.spriteFrameWidth * this.definition.scale}px`,
-			"--pet-height": `${this.spriteFrameHeight * this.definition.scale}px`,
-		});
-		this.applyFrame([0, 0]);
+	/** Species art scale times the user's pet-size multiplier. */
+	private get pixelScale(): number {
+		return this.definition.scale * this.scale;
 	}
 
-	private getMaxRow(): number {
-		let maxY = 0;
-		for (const key of Object.keys(this.definition.animations)) {
-			const anim = this.definition.animations[key];
-			const list = Array.isArray(anim) ? anim : [anim];
-			for (const animation of list) {
-				for (const frame of animation.frames) {
-					if (frame[1] > maxY) {
-						maxY = frame[1];
-					}
-				}
-			}
-		}
-		return maxY;
+	public setScale(scale: number) {
+		this.scale = scale;
+		this.spriteCanvas?.setDisplayScale(this.pixelScale);
+	}
+
+	private async initializeSprite() {
+		if (!this.spriteCanvas) return;
+		await this.spriteCanvas.load(this.spritesheetUrl);
 	}
 
 	private applyFrame(frame: [number, number]) {
-		const [ox, oy] = this.definition.variantOffset ?? [0, 0];
-		const x = -((frame[0] + ox) * this.spriteFrameWidth) * this.definition.scale;
-		const y = -((frame[1] + oy) * this.spriteFrameHeight) * this.definition.scale - 0.5;
-		this.petEl.setCssStyles({ backgroundPosition: `${x}px ${y}px` });
+		this.spriteCanvas?.setFrame(frame[0], frame[1]);
 	}
 
 	private async playAnimation(name: string) {
@@ -197,11 +173,7 @@ export class StardewPet {
 		const nextDirection = flip ? -1 : 1;
 		if (this.direction === nextDirection) return;
 		this.direction = nextDirection;
-		this.petEl.setCssProps({
-			"--scale-x": `${this.direction}`,
-			"--bubble-scale-x": `${1 / this.direction}`,
-		});
-		this.speechBubbleEl?.setCssProps({ "--bubble-scale-x": `${1 / this.direction}` });
+		this.spriteCanvas?.setFlipped(flip);
 	}
 
 	private setupHoverListeners() {
@@ -326,8 +298,9 @@ export class StardewPet {
 		const facing = this.direction;
 		this.actionLoopPaused = true;
 		void this.playAnimation("idle");
-		this.direction = facing;
-		this.petEl.setCssProps({ "--scale-x": `${facing}` });
+		// Idle may reset the animation's mirror state; keep the pet facing the
+		// way it was when the bubble appeared.
+		this.setFlip(facing < 0);
 
 		// Freeze the pet at its current visual position (same logic as hover).
 		this.freezeAtCurrentPosition();
@@ -471,8 +444,8 @@ export class StardewPet {
 		const ch = el.offsetHeight;
 		if (cw <= 0 || ch <= 0) return null;
 
-		const pw = this.spriteFrameWidth * this.definition.scale;
-		const ph = this.spriteFrameHeight * this.definition.scale;
+		const pw = this.spriteFrameWidth * this.pixelScale;
+		const ph = this.spriteFrameHeight * this.pixelScale;
 		const minX = pw / 2;
 		const maxX = cw - pw / 2;
 		const minY = ph / 2;
@@ -518,10 +491,8 @@ export class StardewPet {
 		this.petEl.setCssProps({
 			"--left": `${tx}px`,
 			"--top": `${ty}px`,
-			"--scale-x": `${this.direction}`,
 			"--move-duration": `${duration}ms`,
 		});
-		this.speechBubbleEl?.setCssProps({ "--bubble-scale-x": `${1 / this.direction}` });
 		this.currentX = tx;
 		this.currentY = ty;
 		await wait(duration);

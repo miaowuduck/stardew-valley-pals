@@ -1,5 +1,6 @@
 import { Modal, App } from "obsidian";
 import type { SelectorOption } from "../core/types";
+import { SpriteCanvas } from "../pets/sprite-canvas";
 
 export class SelectorModal extends Modal {
 	options: SelectorOption[];
@@ -66,46 +67,31 @@ export class SelectorModal extends Modal {
 			if (option.spriteData) {
 				const sd = option.spriteData;
 				const spriteEl = card.createDiv({ cls: "pet-selector-sprite" });
+				const sprite = new SpriteCanvas(
+					spriteEl.ownerDocument,
+					sd.frameWidth,
+					sd.frameHeight,
+					sd.scale,
+					sd.variantOffset ?? [0, 0],
+				);
+				spriteEl.appendChild(sprite.el);
 
-				// Load sprite sheet image to get natural dimensions
-				const img = new Image();
-				img.src = sd.url;
-				img.onload = () => {
-					const naturalW = img.naturalWidth;
-					const naturalH = img.naturalHeight;
-
-					spriteEl.setCssStyles({
-						backgroundImage: `url('${sd.url}')`,
-						backgroundRepeat: "no-repeat",
-						imageRendering: "pixelated",
-						backgroundSize: `${naturalW * sd.scale}px ${naturalH * sd.scale}px`,
-						width: `${sd.frameWidth * sd.scale}px`,
-						height: `${sd.frameHeight * sd.scale}px`,
-					});
-
-					// Apply first frame
-					const [fx0, fy0] = sd.moveFrames[0] ?? [0, 0];
-					const [ox, oy] = sd.variantOffset ?? [0, 0];
-					const px0 = -((fx0 + ox) * sd.frameWidth) * sd.scale;
-					const py0 = -((fy0 + oy) * sd.frameHeight) * sd.scale;
-					spriteEl.setCssStyles({ backgroundPosition: `${px0}px ${py0}px` });
-
-					// Start walking animation loop
-					let frameIndex = 0;
-					const interval = Math.max(16, Math.floor(1000 / sd.fps));
-					const timer = window.setInterval(() => {
-						frameIndex = (frameIndex + 1) % sd.moveFrames.length;
-						const [fx, fy] = sd.moveFrames[frameIndex];
-						const px = -((fx + ox) * sd.frameWidth) * sd.scale;
-						const py = -((fy + oy) * sd.frameHeight) * sd.scale;
-						spriteEl.setCssStyles({ backgroundPosition: `${px}px ${py}px` });
-					}, interval);
-					this.animationTimers.push(timer);
-				};
-
-				img.onerror = () => {
+				const [fx0, fy0] = sd.moveFrames[0] ?? [0, 0];
+				sprite.setFrame(fx0, fy0);
+				void sprite.load(sd.url).catch((error) => {
+					console.error(`Failed to load selector sprite ${sd.url}:`, error);
 					spriteEl.setText("?");
-				};
+				});
+
+				// Start walking animation loop
+				let frameIndex = 0;
+				const interval = Math.max(16, Math.floor(1000 / sd.fps));
+				const timer = window.setInterval(() => {
+					frameIndex = (frameIndex + 1) % sd.moveFrames.length;
+					const frame = sd.moveFrames[frameIndex];
+					if (frame) sprite.setFrame(frame[0], frame[1]);
+				}, interval);
+				this.animationTimers.push(timer);
 			}
 
 			card.createDiv({ cls: "pet-selector-label", text: option.label });

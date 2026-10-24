@@ -1,16 +1,3 @@
-/* Register scale props as a number so windows build resolves scaleX properly */
-@property --scale-x {
-	syntax: "<number>";
-	inherits: true;
-	initial-value: 1;
-}
-
-@property --scale {
-	syntax: "<number>";
-	inherits: true;
-	initial-value: 1;
-}
-
 /* ------------- Overlay Mode Styles ------------- */
 
 /* Full-screen transparent overlay for overlay mode (overlay top to allow dragging) */
@@ -114,26 +101,30 @@
 	cursor: pointer;
 }
 
-/* Use css variables for most of the dynamically changing values, i.e. top, transition, etc. */
+/* Use css variables for most of the dynamically changing values, i.e. top, transition, etc.
+   The pet box is sized by the sprite canvas, so layout size always equals
+   visual size — wandering bounds and hit-testing stay correct at every scale. */
 .pet {
 	position: absolute;
-	width: var(--pet-width, var(--pet-size));
-	height: var(--pet-height, var(--pet-size));
+	width: max-content;
+	height: max-content;
 	left: var(--left);
 	top: var(--top);
-	transform: translate(-50%, -50%) scale(var(--scale, 1)) scaleX(var(--scale-x, 1));
-	background-repeat: no-repeat;
-	background-position: 0 0;
-	image-rendering: pixelated;
+	transform: translate(-50%, -50%);
 	transition: left var(--move-duration, 300ms) linear, top var(--move-duration, 300ms) linear;
 	z-index: 100;
+}
+
+.pet-sprite {
+	display: block;
+	image-rendering: pixelated;
 }
 
 .pet-name-tooltip {
 	position: absolute;
 	bottom: 100%; 
 	left: 50%;
-	transform: translateX(-50%) translateY(-2px) scaleX(var(--scale-x, 1));
+	transform: translateX(-50%) translateY(-2px);
 	background: linear-gradient(180deg, #f7e6b7 0%, #e6c87d 100%);
 	color: #3d2d16;
 	padding: 4px 8px;
@@ -156,7 +147,7 @@
 .pet-overlay-container .pet.pet-dragging {
 	z-index: 9999;
 	filter: drop-shadow(0 8px 12px rgba(0, 0, 0, 0.35));
-	transform: translate(-50%, -50%) scale(var(--scale, 1)) scaleX(var(--scale-x, 1)) scale(1.12);
+	transform: translate(-50%, -50%) scale(1.12);
 	transition: none;
 	cursor: grabbing;
 }
@@ -223,7 +214,7 @@
 	height: 12px;
 	left: var(--heart-random-x);
 	top: -10px; 
-	transform: translateX(-50%) scaleX(var(--scale-x, 1));
+	transform: translateX(-50%);
 	background-image: var(--heart-url);
 	background-size: cover;
 	image-rendering: pixelated;
@@ -318,15 +309,15 @@
 @keyframes heart-float {
 	0% {
 		opacity: 1;
-		transform: translateX(-50%) scaleX(var(--scale-x, 1)) translateY(0) scale(0.5);
+		transform: translateX(-50%) translateY(0) scale(0.5);
 	}
 	50% {
 		opacity: 1;
-		transform: translateX(-50%) scaleX(var(--scale-x, 1)) translateY(-15px) scale(1);
+		transform: translateX(-50%) translateY(-15px) scale(1);
 	}
 	100% {
 		opacity: 0;
-		transform: translateX(-50%) scaleX(var(--scale-x, 1)) translateY(-30px) scale(0.8);
+		transform: translateX(-50%) translateY(-30px) scale(0.8);
 	}
 }
 

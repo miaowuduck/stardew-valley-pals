@@ -94,8 +94,7 @@ export class PetView extends ItemView {
 
 	updatePetSize() {
 		for (const { pet } of this.pets) {
-			pet.scale = this.plugin.instanceData.petSize;
-			pet.petEl?.setCssProps({ "--scale": `${this.plugin.instanceData.petSize}` });
+			pet.setScale(this.plugin.instanceData.petSize);
 		}
 	}
 

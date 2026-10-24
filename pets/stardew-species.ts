@@ -266,6 +266,7 @@ const speciesList: StardewSpeciesDefinition[] = [
 		id: "stardew/dino",
 		label: "Dinosaur",
 		sprite: "dino",
+		frameSize: 16,
 		scale: 1,
 		moveDist: 24,
 		animations: {
