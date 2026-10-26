@@ -1,5 +1,6 @@
 import { StardewPet } from "./stardew-pet";
 import { getStardewSpeciesDefinition, isStardewSpecies } from "./stardew-species";
+import type { RantResult } from "../core/types";
 
 export type RenderablePet = StardewPet;
 
@@ -9,7 +10,7 @@ export function createRenderablePet(
 	petId: string,
 	scale: number,
 	petName: string,
-	rightClickTextProvider: (() => string | Promise<string>) | null,
+	rightClickTextProvider: (() => RantResult | Promise<RantResult>) | null,
 	speedMultiplier = 1,
 	speechEnabledProvider: ((isNPC: boolean) => boolean) | null = null,
 ): RenderablePet | null {

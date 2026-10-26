@@ -2,11 +2,18 @@ import { Notice } from "obsidian";
 import { heartAsset } from "./pet-assets";
 import { SpriteCanvas } from "./sprite-canvas";
 import { getStardewSpeciesSprite, isNpcSpeciesType, toAnimation } from "./stardew-species";
-import type { StardewSpeciesDefinition } from "./stardew-species";
+import type { StardewSpeciesDefinition, StardewAnimation } from "./stardew-species";
+import type { RantResult } from "../core/types";
 
 function wait(ms: number): Promise<void> {
 	return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
+
+/** Sustained actions (rest / activity) last this long, in ms. Villagers settle
+ *  into a scene for minutes instead of cycling between activities quickly;
+ *  hover, speech bubbles and banter still interrupt and resume them. */
+const SUSTAINED_ACTION_MIN_MS = 3 * 60 * 1000;
+const SUSTAINED_ACTION_MAX_MS = 10 * 60 * 1000;
 
 export class StardewPet {
 	public petEl!: HTMLElement;
@@ -21,6 +28,11 @@ export class StardewPet {
 	private isDestroyed = false;
 	private animationTimer: ReturnType<typeof window.setInterval> | null = null;
 	private currentAnimName: string | null = null;
+	/** The resolved animation currently driving the canvas (for reverse-out
+	 *  transitions), and a generation counter that aborts stale transitions
+	 *  when a newer playAnimation call supersedes them. */
+	private currentAnimation: StardewAnimation | null = null;
+	private animGeneration = 0;
 	private speechBubbleEl: HTMLElement | null = null;
 	private speechBubbleTimeout: ReturnType<typeof window.setTimeout> | null = null;
 	private actionLoopPaused = false;
@@ -30,7 +42,7 @@ export class StardewPet {
 	private readonly spritesheetUrl: string;
 	private readonly definition: StardewSpeciesDefinition;
 	private readonly petName: string;
-	private readonly rightClickTextProvider: (() => string | Promise<string>) | null;
+	private readonly rightClickTextProvider: (() => RantResult | Promise<RantResult>) | null;
 	private readonly speechEnabledProvider: ((isNPC: boolean) => boolean) | null;
 	private isDragging = false;
 	private dragThreshold = 3;
@@ -44,7 +56,7 @@ export class StardewPet {
 		petId: string,
 		scale: number,
 		petName: string,
-		rightClickTextProvider: (() => string | Promise<string>) | null = null,
+		rightClickTextProvider: (() => RantResult | Promise<RantResult>) | null = null,
 		speedMultiplier = 1,
 		speechEnabledProvider: ((isNPC: boolean) => boolean) | null = null,
 	) {
@@ -110,6 +122,8 @@ export class StardewPet {
 	public setScale(scale: number) {
 		this.scale = scale;
 		this.spriteCanvas?.setDisplayScale(this.pixelScale);
+		// Offsets are scale-dependent — recompute for the active span.
+		this.applySpanOffsets();
 	}
 
 	private async initializeSprite() {
@@ -122,10 +136,31 @@ export class StardewPet {
 	}
 
 	private async playAnimation(name: string) {
-		if (this.isDestroyed) return;
+		if (this.isDestroyed || !name) return;
 		const animation = toAnimation(this.definition.animations[name]);
 		if (!animation) return;
 
+		// Smooth exit from animations that depict getting INTO a pose
+		// (e.g. a crouch-down sequence): play them backwards once so the
+		// character returns to a neutral stance instead of snapping upright.
+		const generation = ++this.animGeneration;
+		const prev = this.currentAnimation;
+		if (
+			name !== this.currentAnimName &&
+			this.currentAnimName !== null &&
+			prev &&
+			prev.transitionOut === "reverse" &&
+			prev.frames.length > 1
+		) {
+			for (let i = prev.frames.length - 2; i >= 0; i--) {
+				const frame = prev.frames[i];
+				if (frame) this.applyFrame(frame);
+				await wait(90);
+				if (this.isDestroyed || generation !== this.animGeneration) return;
+			}
+		}
+
+		this.applyAnimationSpan(animation);
 		this.setFlip(Boolean(animation.flip));
 
 		if (name === this.currentAnimName) return;
@@ -136,6 +171,7 @@ export class StardewPet {
 		}
 
 		this.currentAnimName = name;
+		this.currentAnimation = animation;
 		this.applyFrame(animation.frames[0] ?? [0, 0]);
 
 		let frameIndex = 0;
@@ -176,11 +212,54 @@ export class StardewPet {
 		this.spriteCanvas?.setFlipped(flip);
 	}
 
+	/** The span of the animation currently driving the canvas, so a scale
+	 *  change can recompute the anchoring offsets. */
+	private activeSpan: { w: number; h: number; anchorX: number; anchorY: number } = {
+		w: 1, h: 1, anchorX: 0, anchorY: 0,
+	};
+
+	/**
+	 * Multi-cell animations (StardewAnimation.span) make the canvas bigger than
+	 * one character frame. The character's body lives in the anchor cell; shift
+	 * the pet element so that anchor cell — not the region centre — stays on
+	 * the pet's position, keeping feet planted where a normal frame puts them.
+	 */
+	private applyAnimationSpan(animation: StardewAnimation) {
+		const span = animation.span;
+		this.activeSpan = {
+			w: span?.w ?? 1,
+			h: span?.h ?? 1,
+			anchorX: span?.anchorX ?? 0,
+			anchorY: span?.anchorY ?? 0,
+		};
+		this.applySpanOffsets();
+	}
+
+	private applySpanOffsets() {
+		const { w, h, anchorX, anchorY } = this.activeSpan;
+		this.spriteCanvas?.setSpan(w, h);
+		const fw = this.spriteFrameWidth;
+		const fh = this.spriteFrameHeight;
+		const dx = ((w * fw) / 2 - (anchorX * fw + fw / 2)) * this.pixelScale;
+		const dy = ((h * fh) / 2 - (anchorY * fh + fh / 2)) * this.pixelScale;
+		this.petEl.setCssProps({
+			"--anim-offset-x": `${dx}px`,
+			"--anim-offset-y": `${dy}px`,
+		});
+	}
+
 	private setupHoverListeners() {
 		this.petEl.addEventListener("mouseenter", () => {
 			this.actionLoopPaused = true;
 			this.freezeAtCurrentPosition();
-			void this.playAnimation(this.definition.animations.sleep ? "sleep" : "idle");
+			// Prefer the most settled pose the species has: a sleeping pet,
+			// a sitting/resting NPC, plain idle otherwise.
+			const hoverAnim = this.definition.animations.sleep
+				? "sleep"
+				: this.definition.animations.rest
+					? "rest"
+					: "idle";
+			void this.playAnimation(hoverAnim);
 		});
 
 		this.petEl.addEventListener("mouseleave", () => {
@@ -197,17 +276,19 @@ export class StardewPet {
 				this.showHeart();
 				return;
 			}
-			const text = this.rightClickTextProvider?.();
-			if (!text) {
+			const result = this.rightClickTextProvider?.();
+			if (!result) {
 				this.showHeart();
 				return;
 			}
 
-			void Promise.resolve(text)
-				.then((resolvedText) => {
-					const finalText = resolvedText.trim();
+			void Promise.resolve(result)
+				.then(({ text, action }) => {
+					const finalText = text.trim();
 					if (finalText) {
 						this.showSpeechBubble(finalText);
+						// After the bubble (which switches to idle) so the action wins.
+						this.performAction(action ?? "gesture");
 						return;
 					}
 					this.showHeart();
@@ -272,6 +353,7 @@ export class StardewPet {
 				this.onDragEnd?.();
 			} else {
 				this.showHeart();
+				this.performAction("gesture");
 			}
 		};
 
@@ -482,9 +564,16 @@ export class StardewPet {
 		if (tx === this.currentX && ty === this.currentY) return false;
 
 		const animName = `move${dir.charAt(0).toUpperCase() + dir.slice(1)}`;
-		void this.playAnimation(animName);
+		// Movement-linked rows are side-facing: only horizontal steps can use them.
+		const useTravel =
+			this.travelActive && !this.directedWalking &&
+			(dir === "left" || dir === "right") &&
+			Boolean(this.definition.animations.travel);
+		const chosenAnim = useTravel ? "travel" : animName;
+		void this.playAnimation(chosenAnim);
+		if (useTravel) this.setFlip(dir === "left");
 
-		const animation = toAnimation(this.definition.animations[animName]);
+		const animation = toAnimation(this.definition.animations[chosenAnim]);
 		const animCycleMs = animation ? (animation.frames.length / animation.fps) * 1000 : 0;
 		const duration = Math.max(200, (this.definition.moveDist / 50) * 1000, animCycleMs);
 
@@ -597,6 +686,10 @@ export class StardewPet {
 			// Container detached or collapsed (e.g. its window closed).
 			const bounds = this.getContainerBounds();
 			if (!bounds) {
+				// Walk cycles loop until replaced — don't leave one spinning
+				// while the pet is standing still. Skip while paused: the
+				// pause source (hover/bubble) owns the current pose.
+				if (!this.isPaused()) void this.playAnimation("idle");
 				await wait(500);
 				continue;
 			}
@@ -609,21 +702,83 @@ export class StardewPet {
 			const targetY = Math.max(bounds.minY, Math.min(bounds.maxY, rawTy));
 
 			// Walk toward the target (primary-axis-first, creating L-shaped paths)
+			// Some villagers have a side-facing "travel" row (skateboard, carrying
+			// gear) — occasionally use it for horizontal movement instead of the
+			// plain walk cycle.
+			this.travelActive = Boolean(this.definition.animations.travel) && Math.random() < 0.35;
 			const arrived = await this.walkToward(targetX, targetY);
+			this.travelActive = false;
 			if (!arrived) {
+				// Aborted/stuck mid-walk: switch back to idle, otherwise the
+				// looping walk animation keeps playing while the pet stands still.
+				// Skip while paused: hover/speech already chose this pose.
+				if (!this.isPaused()) void this.playAnimation("idle");
 				// Always yield — see the identical guard in the pet loop.
 				await wait(250);
 				continue;
 			}
 
-			// Pause at destination (3–8 seconds, like SV's squarePauseTotal)
-			void this.playAnimation("idle");
-			const pauseTime = 3000 + Math.random() * 5000;
+			// Pause at destination: instead of always standing idle, settle into
+			// a sustained action (rest / character activity) for a good while —
+			// villagers shouldn't be on their feet constantly. Sustained actions
+			// run 3–10 minutes; plain idle keeps the old 3–8 s pacing (like SV's
+			// squarePauseTotal).
+			const action = this.pickNpcSustainedAction();
+			void this.playAnimation(action);
+			const pauseTime = action === "idle"
+				? 3000 + Math.random() * 5000
+				: SUSTAINED_ACTION_MIN_MS
+					+ Math.random() * (SUSTAINED_ACTION_MAX_MS - SUSTAINED_ACTION_MIN_MS);
+			let wasPaused = false;
 			const started = Date.now();
-			while (Date.now() - started < pauseTime && !this.isPaused() && !this.isDestroyed) {
+			while (Date.now() - started < pauseTime && !this.isDestroyed) {
 				await wait(500);
+				if (this.isPaused()) {
+					// Hover/bubble/banter replaced our animation; remember to
+					// bring the sustained action back afterwards. The timer
+					// does not extend — same semantics as the pet sit/sleep waits.
+					wasPaused = true;
+					continue;
+				}
+				if (wasPaused) {
+					wasPaused = false;
+					void this.playAnimation(action);
+				}
 			}
 		}
+	}
+
+	/** The last sustained action picked, so the same one isn't chosen twice
+	 *  in a row. */
+	private lastNpcAction: string | null = null;
+
+	/** Whether the current wander walk uses the side-facing travel row. */
+	private travelActive = false;
+
+	/** Weighted random pick among the sustained actions this NPC actually has
+	 *  frames for: rest ×3, activity ×3, idle ×4 (always present, so the pool
+	 *  is never empty). Gestures are excluded — they are one-beat reactions
+	 *  (loop:false), not states to settle into. */
+	private pickNpcSustainedAction(): string {
+		const anims = this.definition.animations;
+		const pool: string[] = [];
+		if (anims.rest) pool.push("rest", "rest", "rest");
+		if (anims.activity) pool.push("activity", "activity", "activity");
+		pool.push("idle", "idle", "idle", "idle");
+
+		let pick = pool[Math.floor(Math.random() * pool.length)];
+		if (pick === this.lastNpcAction) {
+			const alternatives = pool.filter((a) => a !== pick);
+			// The pool can be a single action repeated (e.g. NPCs with no
+			// rest/activity: idle only). Filtering then yields an empty array —
+			// indexing it returned undefined and playAnimation silently did
+			// nothing, leaving the previous walk cycle running in place.
+			if (alternatives.length > 0) {
+				pick = alternatives[Math.floor(Math.random() * alternatives.length)];
+			}
+		}
+		this.lastNpcAction = pick;
+		return pick;
 	}
 
 	/** Walk toward a target position. Returns true when the target is reached.
@@ -631,6 +786,11 @@ export class StardewPet {
 	 *  ignored; a wander walk aborts as soon as a directed walk takes over. */
 	private async walkToward(tx: number, ty: number, directed = false): Promise<boolean> {
 		const maxSteps = 60;
+		// Arrival must use the ACTUAL step length: with a speed multiplier > 1 a
+		// full step overshoots the target, and a threshold smaller than the step
+		// makes the pet ping-pong across the target until the step cap runs out —
+		// after which it would stand still with the walk cycle still looping.
+		const stepDist = this.definition.moveDist * this.speedMultiplier;
 		for (let i = 0; i < maxSteps; i++) {
 			if (this.isDestroyed) return false;
 			if (directed ? this.banterPaused : (this.isPaused() || this.directedWalking)) return false;
@@ -638,7 +798,7 @@ export class StardewPet {
 			const dx = tx - this.currentX;
 			const dy = ty - this.currentY;
 
-			if (Math.abs(dx) < this.definition.moveDist && Math.abs(dy) < this.definition.moveDist) {
+			if (Math.abs(dx) < stepDist && Math.abs(dy) < stepDist) {
 				return true;
 			}
 
@@ -706,10 +866,41 @@ export class StardewPet {
 		}
 	}
 
-	/** Play the special animation once (onlooker reaction during banter). */
+	/**
+	 * Play an action animation on request (LLM rant/banter, click, onlooker
+	 * reaction). Unknown/absent actions fall back through gesture → special →
+	 * idle so every species does *something*.
+	 */
+	public performAction(action?: string): void {
+		if (this.isDestroyed || this.isDragging) return;
+		const anims = this.definition.animations;
+		const name =
+			action && action !== "none" && anims[action] ? action
+			: anims.gesture ? "gesture"
+			: anims.special ? "special"
+			: "idle";
+		void this.playAnimation(name);
+	}
+
+	/** Play a reaction animation (onlooker during banter). */
 	public celebrate(): void {
-		if (this.isDestroyed) return;
-		void this.playAnimation(this.definition.animations.special ? "special" : "idle");
+		this.hop();
+		this.performAction();
+	}
+
+	/**
+	 * The vanilla "shocked" reaction: a quick vertical hop in place. Purely a
+	 * CSS translation on the sprite — no frames involved, so it works for
+	 * every species and composes with whatever animation is playing.
+	 */
+	public hop(): void {
+		if (this.isDestroyed || this.isDragging) return;
+		const sprite = this.spriteCanvas?.el;
+		if (!sprite) return;
+		sprite.classList.remove("pet-sprite-hop");
+		// Force a reflow so re-adding the class restarts the CSS animation.
+		void sprite.offsetWidth;
+		sprite.classList.add("pet-sprite-hop");
 	}
 
 	public async destroy() {

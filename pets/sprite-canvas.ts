@@ -26,6 +26,9 @@ export class SpriteCanvas {
 	private frameRow = 0;
 	private flipped = false;
 	private dpr = 1;
+	/** Frame region size in cells (see StardewAnimation.span). */
+	private spanW = 1;
+	private spanH = 1;
 
 	constructor(
 		doc: Document,
@@ -79,13 +82,22 @@ export class SpriteCanvas {
 		this.render();
 	}
 
+	/** Switch between single-cell and multi-cell frame regions. */
+	setSpan(spanW: number, spanH: number): void {
+		if (spanW === this.spanW && spanH === this.spanH) return;
+		this.spanW = spanW;
+		this.spanH = spanH;
+		this.resize();
+		this.render();
+	}
+
 	/** Resize both the CSS box and the device-pixel backing store. */
 	private resize(): void {
 		const view = this.el.ownerDocument.defaultView ?? window;
 		this.dpr = view.devicePixelRatio || 1;
 
-		const cssWidth = Math.max(1, this.sourceWidth * this.displayScale);
-		const cssHeight = Math.max(1, this.sourceHeight * this.displayScale);
+		const cssWidth = Math.max(1, this.sourceWidth * this.spanW * this.displayScale);
+		const cssHeight = Math.max(1, this.sourceHeight * this.spanH * this.displayScale);
 		this.el.style.width = `${cssWidth}px`;
 		this.el.style.height = `${cssHeight}px`;
 
@@ -116,8 +128,8 @@ export class SpriteCanvas {
 			this.sheet,
 			(this.frameCol + this.variantOffset[0]) * this.sourceWidth,
 			(this.frameRow + this.variantOffset[1]) * this.sourceHeight,
-			this.sourceWidth,
-			this.sourceHeight,
+			this.sourceWidth * this.spanW,
+			this.sourceHeight * this.spanH,
 			0,
 			0,
 			el.width,

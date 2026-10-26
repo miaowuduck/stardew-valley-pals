@@ -1,6 +1,11 @@
 import OpenAI from "openai";
-import type { StardewPersona } from "../core/types";
+import type { NpcAction, RantResult, StardewPersona } from "../core/types";
 import type { BanterLine } from "../core/constants";
+
+/** Whitelist-check an action field coming from the model. */
+function toNpcAction(raw: unknown): NpcAction | undefined {
+	return raw === "gesture" || raw === "rest" || raw === "activity" ? raw : undefined;
+}
 
 // ── Rant prompt ────────────────────────────────────────────────
 
@@ -50,13 +55,15 @@ ${activitySection}
 ${memorySection}
 
 要求：
-- 只输出一句台词，10 到 28 个汉字
+- 台词只有一句，10 到 28 个汉字
 - 用「${npcName}」的第一人称和口吻，就像游戏里的对话文本
 - 如果有选中文字，优先针对选中内容反应；否则针对笔记内容
 - 可以自然地引用你记得的事情，但不要生硬罗列
 - 禁止旁白、动作描写、引号、emoji、"作为角色"之类的出戏表达
 - 不要每句都提自己的招牌话题，根据笔记内容灵活反应
-- 如果提到时间或打招呼，与用户当地时间保持一致，问候方式自然变化，不要固定套路`;
+- 如果提到时间或打招呼，与用户当地时间保持一致，问候方式自然变化，不要固定套路
+- 严格输出 JSON：{"text": "你的台词", "action": "none|gesture|rest|activity"}
+- action 表示说话时的身体动作：gesture=短暂的小动作，rest=坐下或休息，activity=做你的招牌活动（如钓鱼、弹琴），none=只是站着；情绪不明显时用 none`;
 	}
 
 	return `You are ${npcName} from Stardew Valley, hanging around the user's Obsidian note. Say one line of dialogue that could appear verbatim in the game's dialogue files.
@@ -76,7 +83,9 @@ Requirements:
 - You may naturally draw on things you remember about the user, but don't list them
 - No narration, no stage directions, no quotation marks, no emojis, no breaking character
 - Don't lean on your signature topic every time — react to what's actually on the page
-- If you mention the time or greet the user, stay consistent with their local time; vary greetings naturally instead of falling back on one stock phrase`;
+- If you mention the time or greet the user, stay consistent with their local time; vary greetings naturally instead of falling back on one stock phrase
+- Output strict JSON only: {"text": "<your one line>", "action": "none|gesture|rest|activity"}
+- action is what your body does while speaking: gesture = a brief animated reaction, rest = sitting/settling down, activity = doing your signature activity (fishing, playing music...), none = just standing. Pick none unless the emotion clearly calls for movement`;
 }
 
 function cleanSingleLine(text: string): string {
@@ -111,6 +120,49 @@ function getLocalTimeDescription(useChinese: boolean): string {
 	return `${weekday}, ${date}, ${hhmm} (${part})`;
 }
 
+/**
+ * Parse the model's rant response into { text, action }. Three layers of
+ * defense, mirroring parseDialogue: strict JSON → regex rescue of the "text"
+ * field when the model emitted slightly malformed JSON → treat the whole
+ * reply as plain text (exactly the pre-JSON behavior). A parse failure can
+ * never break rants.
+ */
+function parseRantResponse(raw: string): RantResult {
+	const cleaned = raw.replace(/```(?:json)?/g, "").trim();
+
+	try {
+		const start = cleaned.indexOf("{");
+		const end = cleaned.lastIndexOf("}");
+		if (start !== -1 && end > start) {
+			const parsed = JSON.parse(cleaned.slice(start, end + 1)) as { text?: unknown; action?: unknown };
+			if (typeof parsed.text === "string" && parsed.text.trim()) {
+				return { text: cleanSingleLine(parsed.text), action: toNpcAction(parsed.action) };
+			}
+		}
+	} catch (e) {
+		console.warn("Failed to parse rant JSON, trying text rescue:", e);
+	}
+
+	// The reply looks like JSON but didn't parse cleanly — rescue the text
+	// field so raw JSON never lands in the speech bubble.
+	if (/^\s*\{/.test(cleaned) && cleaned.includes("\"text\"")) {
+		const match = cleaned.match(/"text"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+		if (match?.[1]) {
+			try {
+				const text = cleanSingleLine(JSON.parse(`"${match[1]}"`) as string);
+				if (text) {
+					const actionMatch = cleaned.match(/"action"\s*:\s*"(\w+)"/);
+					return { text, action: toNpcAction(actionMatch?.[1]) };
+				}
+			} catch {
+				// Fall through to plain text.
+			}
+		}
+	}
+
+	return { text: cleanSingleLine(cleaned) };
+}
+
 export async function generatePageRantText(
 	pageLabel: string,
 	trigger: "timer" | "rightclick",
@@ -124,9 +176,9 @@ export async function generatePageRantText(
 	model: OpenAI | null,
 	selectedModel: string,
 	useChinesePrompt: boolean,
-): Promise<string> {
+): Promise<RantResult> {
 	if (!model) {
-		return "";
+		return { text: "" };
 	}
 
 	const prompt = buildPageRantPrompt(
@@ -139,7 +191,7 @@ export async function generatePageRantText(
 			model: selectedModel,
 			messages: [{ role: "user", content: prompt }],
 		});
-		return cleanSingleLine(response.choices[0].message.content || "");
+		return parseRantResponse(response.choices[0].message.content || "");
 	} catch (e: unknown) {
 		const msg = (e as { message?: string })?.message || String(e);
 		console.error("Page rant generation failed:", e);
@@ -189,8 +241,9 @@ ${memoryBlock(nameB, memoriesB)}
 - 如果打招呼或提到时间，与用户当地时间保持一致，问候方式自然变化，不要固定套路
 - 两个人都要用自己的口吻说话，像游戏对话文本
 - 不要旁白、不要动作描写、不要解释
-- 严格输出 JSON：{"lines": [{"speaker": "A", "text": "..."}, {"speaker": "B", "text": "..."}]}
-- speaker 只能填 "A" 或 "B"：A 是「${nameA}」，B 是「${nameB}」，不要填角色名`;
+- 严格输出 JSON：{"lines": [{"speaker": "A", "text": "...", "action": "none"}, {"speaker": "B", "text": "...", "action": "none"}]}
+- speaker 只能填 "A" 或 "B"：A 是「${nameA}」，B 是「${nameB}」，不要填角色名
+- action 可选，表示说话时的身体动作：gesture=短暂的小动作，rest=坐下或休息，activity=做招牌活动（如钓鱼、弹琴），none=只是站着；拿不准就填 none`;
 	}
 
 	return `Write a short Stardew Valley-style exchange: ${nameA} and ${nameB} bump into each other on the road and chat for a couple of lines.
@@ -211,8 +264,9 @@ Requirements:
 - If anyone greets or mentions the time, stay consistent with the user's local time; vary greetings naturally instead of falling back on one stock phrase
 - Each speaker uses their own voice, like lines from the game's dialogue files
 - No narration, no stage directions, no explanation
-- Output strict JSON: {"lines": [{"speaker": "A", "text": "..."}, {"speaker": "B", "text": "..."}]}
-- speaker must be the literal letter "A" or "B": A is ${nameA}, B is ${nameB} — never use character names`;
+- Output strict JSON: {"lines": [{"speaker": "A", "text": "...", "action": "none"}, {"speaker": "B", "text": "...", "action": "none"}]}
+- speaker must be the literal letter "A" or "B": A is ${nameA}, B is ${nameB} — never use character names
+- action is optional: what the speaker's body does during the line — gesture = a brief animated reaction, rest = sitting/settling down, activity = doing their signature activity (fishing, playing music...), none = just standing. When in doubt, use none`;
 }
 
 /**
@@ -261,7 +315,7 @@ function parseDialogue(raw: string, nameA: string, nameB: string): BanterLine[] 
 		const start = cleaned.indexOf("{");
 		const end = cleaned.lastIndexOf("}");
 		if (start !== -1 && end > start) {
-			const parsed = JSON.parse(cleaned.slice(start, end + 1)) as { lines?: { speaker?: string; text?: string }[] };
+			const parsed = JSON.parse(cleaned.slice(start, end + 1)) as { lines?: { speaker?: string; text?: string; action?: unknown }[] };
 			if (Array.isArray(parsed.lines)) {
 				let prev: "A" | "B" | null = null;
 				const lines = parsed.lines
@@ -269,7 +323,7 @@ function parseDialogue(raw: string, nameA: string, nameB: string): BanterLine[] 
 					.map((l) => {
 						const speaker = resolveDialogueSpeaker(l.speaker, nameA, nameB, prev) ?? "A";
 						prev = speaker;
-						return { speaker, text: cleanSingleLine(l.text as string) };
+						return { speaker, text: cleanSingleLine(l.text as string), action: toNpcAction(l.action) };
 					})
 					.filter((l) => l.text);
 				if (lines.length > 0) return ensureBothSpeakers(lines).slice(0, 6);

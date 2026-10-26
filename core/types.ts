@@ -68,6 +68,22 @@ export type StardewAnimation = {
 	fps: number;
 	loop?: boolean;
 	flip?: boolean;
+	/**
+	 * Multi-cell frame region, in cells. Some NPC actions are drawn across
+	 * adjacent cells instead of one frame: fishing rods extend one cell right
+	 * (2x1, Elliott), mop/line dangles one cell below (1x2, Pam/Willy).
+	 * Frame coords reference the region's TOP-LEFT cell.
+	 * anchorX/anchorY say which cell holds the character's body (default 0,0)
+	 * so the renderer can keep the character pinned to the pet's position
+	 * instead of centering the whole region.
+	 */
+	span?: { w: 1 | 2; h: 1 | 2; anchorX?: 0 | 1; anchorY?: 0 | 1 };
+	/**
+	 * "reverse": when switching away from this animation, first play its
+	 * frames backwards once (e.g. stand back up from a crouch-down sequence)
+	 * instead of snapping straight into the next animation's first frame.
+	 */
+	transitionOut?: "reverse";
 };
 
 export type StardewPersona = {
@@ -98,4 +114,16 @@ export const NPC_TYPE_PREFIX = "stardew/npc/";
 
 export function isNpcSpeciesType(type: string): boolean {
 	return type.startsWith(NPC_TYPE_PREFIX);
+}
+
+// ── LLM action channel ─────────────────────────────────────────
+
+/** Body actions the model may attach to its speech; must match animation
+ *  keys in each species' animations record. */
+export type NpcAction = "gesture" | "rest" | "activity";
+
+/** A rant line plus the optional body action to play while saying it. */
+export interface RantResult {
+	text: string;
+	action?: NpcAction;
 }

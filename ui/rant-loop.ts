@@ -1,10 +1,13 @@
 import type PetPlugin from "../main";
+import type { RantResult } from "../core/types";
 
 // ── Types ──────────────────────────────────────────────────────
 
 interface RantTarget {
 	type: string;
 	showSpeechBubble: (text: string) => void;
+	/** Play a body action alongside the bubble (LLM-chosen, may be absent). */
+	performAction?: (action?: string) => void;
 }
 
 interface RantLoopOptions {
@@ -16,8 +19,8 @@ interface RantLoopOptions {
 	sampleDelayMs: () => number;
 	/** Current list of pets/NPCs that can speak. */
 	getTargets: () => RantTarget[];
-	/** Produce the text a given pet type should say. */
-	getRantText: (type: string) => Promise<string>;
+	/** Produce the rant (text + optional action) a given pet type should deliver. */
+	getRantText: (type: string) => Promise<RantResult>;
 	/** Whether speech is allowed for a given pet type. */
 	isSpeechEnabled: (type: string) => boolean;
 	/**
@@ -73,8 +76,11 @@ export function createRantLoopScheduler(opts: RantLoopOptions) {
 					const targets = opts.getTargets();
 					const target = targets[Math.floor(Math.random() * targets.length)];
 					if (target && opts.isSpeechEnabled(target.type)) {
-						void opts.getRantText(target.type).then((text) => {
-							if (text) target.showSpeechBubble(text);
+						void opts.getRantText(target.type).then((result) => {
+							if (result.text) {
+								target.showSpeechBubble(result.text);
+								target.performAction?.(result.action);
+							}
 						});
 					}
 				}

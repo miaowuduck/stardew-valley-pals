@@ -110,7 +110,10 @@
 	height: max-content;
 	left: var(--left);
 	top: var(--top);
-	transform: translate(-50%, -50%);
+	/* The anim-offset vars shift the element when a multi-cell animation
+	   (StardewAnimation.span) is playing, so the character's anchor cell —
+	   not the enlarged region's centre — stays on the pet's position. */
+	transform: translate(-50%, -50%) translate(var(--anim-offset-x, 0px), var(--anim-offset-y, 0px));
 	transition: left var(--move-duration, 300ms) linear, top var(--move-duration, 300ms) linear;
 	z-index: 100;
 }
@@ -118,6 +121,18 @@
 .pet-sprite {
 	display: block;
 	image-rendering: pixelated;
+}
+
+/* Vanilla "shocked" reaction: a quick vertical hop, no sprite frames needed. */
+@keyframes pet-hop {
+	0%, 100% { transform: translateY(0); }
+	35% { transform: translateY(-28%); }
+	70% { transform: translateY(0); }
+	82% { transform: translateY(-12%); }
+}
+
+.pet-sprite-hop {
+	animation: pet-hop 0.55s ease-out;
 }
 
 .pet-name-tooltip {

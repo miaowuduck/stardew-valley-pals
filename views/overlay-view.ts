@@ -168,6 +168,7 @@ export class OverlayPetView {
 						.map((p) => ({
 							type: p.type,
 							showSpeechBubble: (text: string) => p.pet.showSpeechBubble(text),
+							performAction: (action?: string) => p.pet.performAction(action),
 						})),
 				() => this.banterRunner.tryRunBanter(this.pets),
 			),

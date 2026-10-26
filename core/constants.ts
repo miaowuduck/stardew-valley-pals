@@ -1,4 +1,4 @@
-import { type PetPluginData } from "./types";
+import { type PetPluginData, type NpcAction } from "./types";
 
 // ── Default plugin data ────────────────────────────────────────
 
@@ -109,6 +109,8 @@ export function getFallbackRantText(
 export interface BanterLine {
 	speaker: "A" | "B";
 	text: string;
+	/** Optional body action the speaker performs while saying the line. */
+	action?: NpcAction;
 }
 
 const BANTER_CN: BanterLine[][] = [

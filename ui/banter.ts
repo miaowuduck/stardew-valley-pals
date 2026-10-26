@@ -90,6 +90,7 @@ export function createBanterRunner(plugin: PetPlugin) {
 			for (const line of lines) {
 				const speaker = line.speaker === "A" ? a : b;
 				speaker.pet.showSpeechBubble(line.text, LINE_DURATION);
+				speaker.pet.performAction(line.action);
 				await wait(LINE_DURATION + LINE_GAP);
 			}
 

@@ -3,7 +3,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Obsidian](https://img.shields.io/badge/Obsidian-%23483699.svg?style=flat&logo=obsidian&logoColor=white)](https://obsidian.md)
 
-Bring the charming world of **Stardew Valley** into your Obsidian vault. Adopt adorable pets, befriend iconic villagers, and let them keep you company while you work on your notes — they'll comment on your writing, chat with each other, and even remember what matters to you.
+Bring the charming world of **Stardew Valley** into your Obsidian vault. Adopt adorable pets, befriend iconic villagers, and let them keep you company while you work — they wander, settle into their own little activities, chat with each other, comment on your notes, and remember what matters to you.
 
 ---
 
@@ -15,7 +15,7 @@ Bring the charming world of **Stardew Valley** into your Obsidian vault. Adopt a
 
 *② Stardew Valley villagers walking and interacting with your notes.*
 
-![readmepics/pets-demo.gif](readmepics/pets-demo.gif) 
+![readmepics/pets-demo.gif](readmepics/pets-demo.gif)
 
 ### AI Speech Bubbles
 
@@ -31,18 +31,56 @@ Bring the charming world of **Stardew Valley** into your Obsidian vault. Adopt a
 
 ---
 
+## ✨ What's new in 3.0 — villagers that *live* in your vault
+
+Previous versions used only the walking frames of each villager sprite sheet, so everyone did little more than pace around and stand still. 3.0 unlocks the full animation sets:
+
+- **Every villager has real animations again.** 41 characters, each hand-curated frame by frame from the original game sheets: gestures, sitting/resting poses, and character-specific activities.
+- **Villagers settle into a scene.** After walking somewhere, a villager picks something to do and sticks with it for **3–10 minutes** — Clint hammers at his anvil, Willy casts a line, Abigail plays her flute. Hovering, speech bubbles, and conversations still interrupt, and the activity resumes afterwards.
+- **The AI can act, not just talk.** Speech responses may include a body action (`gesture`, `rest`, or `activity`), so a villager can lean into what they're saying. A model that returns only text behaves exactly as before.
+- **Small touches:** a few villagers have the vanilla "shocked" hop-and-gesture reaction; skateboarders and toddlers use their side-facing travel frames while moving; frame rates were tuned per animation so nothing looks jittery or sped up.
+
+---
+
 ## ✨ Features
 
 ### 🐱 Pets & 👥 Villagers
+
 ![readmepics/pets.gif](readmepics/pets.gif)
 ![readmepics/NPCs.gif](readmepics/NPCs.gif)
 
 | Category | Details |
 |---|---|
 | **Pets** | 15 pet species with 55+ color variants — cats, dogs, chickens, cows, ducks, rabbits, dinosaurs, parrots, junimos, turtles, goats, sheep, pigs, ostriches, and raccoons. Name them whatever you like and adopt as many as you want |
-| **Villagers** | 35+ Stardew Valley characters — Abigail, Sebastian, Lewis, Robin, Emily, Shane, and many more. Each villager is **one of a kind** and keeps their official name, just like in the game |
-| **Animations** | Each character has idle, walk, special, and sleep animation frames |
+| **Villagers** | 41 Stardew Valley characters — Abigail, Sebastian, Lewis, Robin, Emily, Shane, and many more. Each villager is **one of a kind** and keeps their official name, just like in the game |
+| **Animations** | Pets idle, walk, sit, and sleep. Villagers add gestures, resting poses, and character-specific activities on top of their walk cycles |
 | **Art Style** | All sprites use authentic Stardew Valley pixel art |
+
+### 🎭 Villager Activities
+
+Each villager's activity set comes from their own sprite sheet, so it always fits who they are:
+
+| Villager(s) | Activities |
+|---|---|
+| Clint | Hammering at the anvil, inspecting a bar of iron |
+| Willy & Dick | Casting a fishing line (bobber and float included), drinking |
+| Elliott | Fishing, reading, sunglasses-and-swagger |
+| Abigail | Playing the flute and guitar |
+| Emily | Dancing (two routines), meditating |
+| Sam | Sweeping, kicking around on his skateboard, riding it while he walks |
+| Maru | Operating machines, welding with sparks |
+| Robin | Hammering, aerobics, clapping |
+| Caroline & Jodi | Exercise routines |
+| Pam | Mopping |
+| Shane | Drinking, holding a chicken |
+| Sebastian | Smoking, idling on his motorbike |
+| Penny & Harvey | Sitting and reading |
+| Alex | Lifting weights |
+| Jas, Marnie, Vincent | Jump rope, playing on the beach, dancing |
+| Wizard | Stirring a cauldron |
+| …and more | Leah sculpting and painting, Haley taking photos, Gus cooking, Pierre at the counter, Morris, Lewis, Linus, Evelyn, George, Kent, Demetrius, Marcello, the toddlers… |
+
+Some villagers also have a short **shocked gesture** (click them to see it). All animation clips were reviewed frame by frame, with unusable frames — filler cells, wedding/formal outfits, motion-linked rows — deliberately left out rather than forced into a loop.
 
 ### 🕰️ Villager Visits (Schedule Mode)
 
@@ -65,7 +103,7 @@ Villagers pay attention. After speaking, a villager may distill a **durable fact
 
 - **Panel mode**: Companions live in a resizable side panel dockable anywhere in your workspace
 - **Overlay mode**: Companions roam freely across your entire Obsidian window as a transparent overlay
-- **Interaction**: Click a pet to see a heart ❤️, right-click a villager to trigger an AI speech bubble
+- **Interaction**: Click a companion to see a heart ❤️ (villagers may also react with a gesture), right-click a villager to trigger an AI speech bubble
 - **Drag & Drop**: Reposition pets manually or let them wander on their own
 
 ### 🤖 AI-Powered Speech Bubbles
@@ -213,7 +251,28 @@ To enable speech bubbles, configure an API provider in settings:
 4. Click **Test connection** to verify everything works
 5. Enable NPC speech bubbles and optionally random page rants
 
-Villagers will now comment in-character on your notes — and remember what they learn about you.
+Villagers will now comment in-character on your notes — and remember what they learn about you. The model may also pick a matching body action from the villager's animation set; if it doesn't, the villager simply keeps standing as before. Any malformed response degrades gracefully to plain text.
+
+---
+
+## 🛠️ Development
+
+```bash
+npm install
+npm run dev      # watch build
+npm run build    # type-check + production bundle
+```
+
+The `scripts/` folder contains read-only Python tools used to curate the sprite sheets (they require Pillow and are not part of the plugin bundle):
+
+| Script | Purpose |
+|---|---|
+| `make-contact-sheets.py` | Enlarged, labeled contact sheets for each NPC sheet |
+| `analyze-edges.py` | Per-cell edge/pixel analysis to spot split-cell composite frames |
+| `verify-frames.py` | Fails if any frame referenced by the animation table is empty, filler, or off-sheet |
+| `export-animations.py` | Exports every animation as a labeled strip + GIF for manual review |
+
+Generated images are written to `scripts/out/` and are git-ignored.
 
 ---
 

@@ -18,6 +18,9 @@ main.js
 # bundle analysis artifact
 meta.json
 
+# generated sprite-sheet review images (scripts/make-contact-sheets.py etc.)
+scripts/out/
+
 # obsidian
 data.json
 

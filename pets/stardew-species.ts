@@ -17,7 +17,7 @@ export type {
 };
 export { NPC_TYPE_PREFIX, isNpcSpeciesType };
 
-function A(frames: StardewFrame[], fps: number, options: { loop?: boolean; flip?: boolean } = {}): StardewAnimation {
+function A(frames: StardewFrame[], fps: number, options: { loop?: boolean; flip?: boolean; span?: StardewAnimation["span"]; transitionOut?: StardewAnimation["transitionOut"] } = {}): StardewAnimation {
 	return { frames, fps, ...options };
 }
 
@@ -311,7 +311,8 @@ const speciesList: StardewSpeciesDefinition[] = [
 ];
 
 // ===== NPC 定义 =====
-// NPC 贴图：16x32 帧，4 列，只使用前 4 行（行走动画），多余行舍去
+// NPC 贴图：16x32 帧，4 列。Row 0-3 为行走动画（下/右/上/左），第 4 行起为
+// 额外姿态，由 NPC_EXTRA_ANIMATIONS 逐角色策展。
 // Row 0: 下, Row 1: 右, Row 2: 上, Row 3: 左
 
 const npcAnimations: StardewSpeciesDefinition["animations"] = {
@@ -320,6 +321,208 @@ const npcAnimations: StardewSpeciesDefinition["animations"] = {
 	moveRight: A([[0, 1], [1, 1], [2, 1], [3, 1]], 5),
 	moveUp: A([[0, 2], [1, 2], [2, 2], [3, 2]], 5),
 	moveLeft: A([[0, 3], [1, 3], [2, 3], [3, 3]], 5),
+};
+
+// 第 4 行起的额外动作，逐角色目检接触表（scripts/make-contact-sheets.py）后策展，
+// 并经 scripts/analyze-edges.py 逐格像素分析确认组合帧边界。
+// 帧坐标含义见每条末尾注释（用了哪些行、跳过了哪些行）。
+// 规则：婚纱/正装帧一律不用；整行填充色（Shane r9-10）、全透明行（Maru r8）、
+// 孤立空白/填充格一律避开；移动联动行（转身/背面行走）不作原地动画。
+// 特殊帧型（StardewAnimation 的对应字段）：
+// - span {w:2}：横向 32 宽组合帧（Clint 打铁、Elliott 钓鱼竿），人物默认在左格，
+//   在右格时设 anchorX:1；拆开单格会只剩砧板碎片/竿尖。
+// - span {h:2}：竖向 64 高组合帧（Pam 拖把、Dick/Willy 钓鱼线），人物在上格。
+// - 往返/跨行序列用显式帧列表表达（如 Alex 举重 r7c2→r7c3→r8c0→r7c3）。
+// - transitionOut: "reverse"：离开该动画时倒放一遍再切换（如下蹲后起身）。
+// - travel：侧向移动联动行，行走时随机替代普通走姿（仅水平移动）。
+// 帧率分档（有动画的条目按动作快慢逐条设定，整体偏慢以强调"场景感"）：
+// - 1–2 fps：慢节奏持续动作与手上劳作（阅读、冥想、钓鱼、抽烟、思考、
+//   烹饪、拖地、扫地、雕刻、作画、搅拌、打铁、喝水、摘帽）
+// - 3 fps：动态动作（跳绳、健身操、舞蹈、焊接、沙滩玩耍、机器操作、
+//   收银、说话手势、举重、拍手）
+// travel 3 fps（比行走帧的 5 fps 更舒缓）。
+// 所有引用帧由 scripts/verify-frames.py 校验为真实素材（含 span 区域每格）。
+// gesture 仅保留"震惊"反应帧（Clint/Linus/Maru/Morris/Pierre/Robin），其余角色的
+// 手势帧经导出 GIF 人工复查（scripts/export-animations.py → scripts/out/anim-review/）
+// 观感不佳，一律不配 gesture；同样经人工复查弃用的素材在条目注释中标注。
+// Dwarf/Krobus/Sandy 的图集只有行走帧，无任何额外动作（不复用行走帧冒充）。
+// 缺 gesture/rest/activity 键的角色由调用方兜底链（gesture → special → idle）兼容。
+const NPC_EXTRA_ANIMATIONS: Record<string, StardewSpeciesDefinition["animations"]> = {
+	Abigail: {
+		activity: [
+			A([[0, 4], [1, 4], [2, 4], [3, 4]], 2),
+			A([[0, 12], [1, 12]], 2),
+		],
+	}, // r4 吹笛；r12 弹吉他(2帧)；r9-11 婚纱跳过；无坐姿行
+	Alex: {
+		rest: A([[0, 9], [1, 9], [2, 9]], 2),
+		activity: A([[2, 7], [3, 7], [0, 8], [3, 7]], 3),
+	}, // r9c0-2 坐姿阅读(3帧)；举重跨行往返序列: r7c2→r7c3→r8c0→r7c3；r4-5 橄榄球转身(移动联动)未用；r11 背面行走；r12 正装
+	Caroline: {
+		activity: A([[0, 4], [0, 4], [1, 4], [1, 4], [0, 4], [0, 4], [2, 4], [2, 4]], 3),
+	}, // r4c0-2 原地健身(背→右→背→左, 每拍重复2帧, 与原版 caroline_exercise 一致)；无坐姿行
+	Clint: {
+		gesture: A([[3, 9]], 3, { loop: false }),
+		activity: [
+			A([[0, 4], [2, 4]], 2, { span: { w: 2, h: 1 } }),
+			A([[0, 8], [2, 8], [0, 9]], 2, { span: { w: 2, h: 1, anchorX: 1 } }),
+			A([[0, 5], [2, 5]], 2, { span: { w: 2, h: 1 } }),
+		],
+	}, // r9c3 单帧正面震惊(灰脸)；打铁全是 32 宽组合帧：r4 敲砧(砧板在右格, c0-1/c2-3 两帧)；r8c0→r8c2→r9c0 抡锤上举→挥下→下砸(人物均在右格)；r5 查看铁条；r6-7 为两组 32x64 四格组合, 当前 span 无法完整表达, 弃用
+	Dick: {
+		activity: [
+			A([[0, 4], [1, 4], [2, 4], [3, 4]], 2, { span: { w: 1, h: 2 } }),
+			A([[0, 7], [1, 7], [2, 7], [3, 7]], 2),
+		],
+	}, // r4+r5 竖向组合钓鱼(人物在上格, 鱼线/浮漂垂入下格, 拆开会只剩浮漂)；r7 侧面喝水；r6 坐姿帧人工复查弃用
+	Elliott: {
+		rest: A([[2, 7]], 2),
+		activity: [
+			A([[0, 10], [2, 10]], 2, { span: { w: 2, h: 1 } }),
+			A([[0, 5], [1, 5], [2, 5]], 2),
+			A([[0, 9], [1, 9]], 2),
+		],
+	}, // r10 横向组合钓鱼(c0-1/c2-3 两帧, 鱼竿伸入右格, 拆开就是悬空竿尖)；r5 侧面阅读3帧(c3空)；r7c2 单帧正面坐姿；r9 戴墨镜侧面摆动2帧(c2-3填充)；r6/r11 背面行走(移动联动)；r12 正装
+	Emily: {
+		rest: A([[0, 6], [1, 6]], 2),
+		activity: [
+			A([[0, 12], [1, 12], [2, 12], [3, 12]], 3),
+			A([[0, 13], [1, 13], [2, 13], [3, 13]], 3),
+		],
+	}, // r6c0-1 打坐(c2-3 站立弃用)；r12/r13 两组正面跳舞；r4/r5/r8 转身舞(移动联动)未用；r9-11 婚纱
+	Evelyn: {
+		rest: A([[0, 4]], 1),
+	}, // r4 四向坐姿姿势组, 仅 c0 侧坐可用作定格
+	George: {
+		rest: A([[0, 4]], 1),
+	}, // r4c0 轮椅坐姿, 唯一可用帧(c1 空, c2-3 填充)
+	Gus: {
+		activity: A([[0, 4], [1, 4], [2, 4], [3, 4]], 2),
+	}, // r4 烹饪/上菜
+	Haley: {
+		activity: [
+			A([[3, 5]], 2),
+			A([[2, 7], [3, 7]], 2),
+		],
+	}, // r5c3 侧面举相机定格、r7c2-3 正面举相机；r8 侧面拍照人工复查弃用；其余转身/过渡帧未用；r9-11 婚纱；无坐姿
+	Harvey: {
+		rest: A([[0, 10], [1, 10]], 2),
+		activity: A([[3, 9], [2, 10], [3, 10]], 2),
+	}, // r10c0-1 侧面坐姿阅读/翻页(rest)；正面阅读: r9c3→r10c2→r10c3；r4/r8-9 其余为混合朝向姿势组；r6/r7/r11 移动联动未用；r12 正装
+	Jas: {
+		activity: A([[0, 4], [1, 4], [2, 4], [3, 4]], 3),
+	}, // r4 跳绳；r5 蹲下→侧坐人工复查弃用
+	Jodi: {
+		activity: [
+			A([[0, 4], [1, 4]], 2),
+			A([[0, 5], [1, 5], [2, 5], [3, 5]], 3),
+		],
+	}, // r4c0-1 背对灶台烹饪(每格自包含, 非 span)；r4c3 与 r5c0 完全重复不插入；r5 原地健身操
+	Leah: {
+		rest: A([[0, 7], [1, 7]], 1),
+		activity: [
+			A([[0, 4], [1, 4], [2, 4], [3, 4]], 2),
+			A([[0, 8], [1, 8], [2, 8], [3, 8]], 2),
+		],
+	}, // r7c0-1 正面坐姿(c2-3 抱臂站立未用)；r4 侧面雕刻；r8 正面画架工作；r5 作画人工复查弃用；r9-11 婚纱
+	Linus: {
+		gesture: A([[2, 5]], 4, { loop: false }),
+	}, // r5c2 单帧正面震惊反应；r5c0-1 侧面进食人工复查弃用；r4 不同装束正面姿势未用(避免装束跳变)
+	Marcello: {
+		activity: A([[0, 4], [1, 4]], 2),
+	}, // r4c0-1 摘帽致意(仅2帧, c2-3 填充)
+	Marnie: {
+		activity: [
+			A([[0, 5], [1, 5], [2, 5], [3, 5]], 2),
+			A([[0, 6], [1, 6], [2, 6], [3, 6]], 3),
+		],
+	}, // r5 侧面喝水；r6 原地跳绳
+	Maru: {
+		gesture: A([[3, 6]], 4, { loop: false }),
+		activity: [
+			A([[0, 4], [1, 4], [2, 4], [3, 4]], 3),
+			A([[0, 5], [1, 5], [2, 5], [3, 5]], 3),
+		],
+	}, // r6c3 单帧正面震惊(c2 非震惊弃用)；r4 侧面机器操作, r5 焊接火花；r7 转身(移动联动)未用；r8 全透明；r9-11 婚纱；无坐姿行
+	Morris: {
+		gesture: A([[3, 4]], 4, { loop: false }),
+		activity: [
+			A([[0, 4], [1, 4], [2, 4]], 2),
+			A([[0, 5], [1, 5], [2, 5], [3, 5]], 3),
+		],
+	}, // r4c3 单帧正面震惊；r4c0-2 同向警觉反应(头顶感叹号, 完整单格)；r5 同向原地说话手势；无坐姿/休息帧
+	Pam: {
+		activity: A([[0, 4], [1, 4], [2, 4], [3, 4]], 2, { span: { w: 1, h: 2 } }),
+	}, // r4+r5 竖向组合拖地(人物在上格, 拖把杆/头垂入下格, 拆开会只剩拖把头)；r6c0 单帧正面(c1-3 填充)
+	Penny: {
+		rest: A([[0, 6], [1, 6]], 1),
+		activity: A([[1, 7], [2, 7]], 2),
+	}, // r6c0-1 背向靠背椅坐姿阅读(c2-3 站立反应帧弃用)；r7c1-2 背面持书/翻页(仅4像素差异, 2fps 防闪烁)；r4 正面阅读人工复查弃用；r7/r8 其余混合朝向、换装或反应帧未用；r9-11 婚纱
+	Pierre: {
+		gesture: A([[0, 4]], 4, { loop: false }),
+		activity: A([[1, 5], [2, 5]], 2),
+	}, // r4c0 单帧正面震惊举手；r4c1-3 侧向移步伸臂(腿部交替, 不作原地 activity)；r5c1-2 侧向站立思考/说话手势(c0 过渡步、c3 正面收尾不混入)；无坐姿
+	Robin: {
+		gesture: A([[3, 4]], 4, { loop: false }),
+		activity: [
+			A([[0, 6], [1, 6], [2, 6]], 2),
+			A([[0, 7], [1, 7], [2, 7], [3, 7]], 3),
+			A([[0, 8], [1, 8], [2, 8], [3, 8]], 3),
+		],
+	}, // r4c3 单帧正面震惊；r6 取 c0-2 同朝右原地抡锤(c3 朝左弃用)；r7 原地健身；r8 正面拍手；r5 锯木人工复查弃用；无坐姿，图集仅 r0-r8
+	Sam: {
+		activity: [
+			A([[0, 10], [1, 10], [2, 10], [1, 10]], 2),
+			A([[1, 6], [2, 6], [3, 6]], 2),
+		],
+		travel: A([[0, 7], [1, 7], [2, 7]], 3),
+	}, // r10 往返扫地(c3 空, 重复 c1 形成 ping-pong)；r6c1-3 正面滑板；r7c0-2 右向蹬板滑行(准备→蹬地→收腿)；r5 吉他、r9 持板侧立人工复查弃用；r8 腾空技巧段未用；r11 背面行走；r12 正装
+	Sebastian: {
+		activity: [
+			A([[0, 5], [1, 5], [2, 5], [3, 5]], 2),
+			A([[0, 7], [1, 7], [2, 7], [3, 7]], 2),
+		],
+	}, // r5 侧面抽烟；r7 骑车坐姿待机(原地, 不设 travel)；r6 台球、r8+r9c0 电脑人工复查弃用；r9c1-3 道具特效/r10 混合朝向剧情/r11 背面载具未用；r12 正装跳过；无通用 rest
+	Shane: {
+		activity: [
+			A([[0, 5], [1, 5], [2, 5], [3, 5], [0, 6], [1, 6]], 2),
+			A([[0, 7], [1, 7]], 2),
+		],
+	}, // r5→r6c1 正面喝酒；r7c0-1 抱鸡；r4 摄影、r6c2-3 侧向喝酒、r7c2→r8c1 足球、r8c2-3 侧跪人工复查弃用；r9-10 整行填充、r11 背面行走、r12 正装跳过
+	Shane_JojaMart: {
+		activity: [
+			A([[0, 4], [1, 4], [2, 4], [3, 4]], 3),
+			A([[0, 5], [1, 5], [2, 5], [3, 5], [0, 6], [1, 6], [2, 6], [3, 6]], 3),
+		],
+	}, // r4 正面收银手势；r5→r6 正面操作→侧身递物→回正跨行序列；无坐姿/休息帧
+	Toddler: {
+		travel: A([[0, 5], [1, 5], [2, 5], [3, 5]], 2),
+	}, // r5 右向爬行作 travel；r4 正面张臂人工复查弃用；无坐姿/原地活动行
+	Toddler_dark: {
+		travel: A([[0, 5], [1, 5], [2, 5], [3, 5]], 2),
+	}, // 布局同 Toddler（已逐张核对）
+	Toddler_girl: {
+		travel: A([[0, 5], [1, 5], [2, 5], [3, 5]], 2),
+	}, // 布局同 Toddler（已逐张核对）
+	Toddler_girl_dark: {
+		travel: A([[0, 5], [1, 5], [2, 5], [3, 5]], 2),
+	}, // 布局同 Toddler_girl（已逐张核对）
+	Vincent: {
+		rest: A([[0, 6]], 1),
+		activity: [
+			A([[2, 4], [2, 4], [2, 4], [2, 4], [3, 4], [3, 4], [3, 4], [3, 4]], 3),
+			A([[0, 2], [1, 5], [0, 2], [0, 5]], 3),
+		],
+	}, // r6c0 侧坐阅读单帧 rest(c1-3 填充)；r4c2-3 沙滩玩耍每拍重复4帧；舞蹈跨行序列: r2c0→r5c1→r2c0→r5c0(与原版一致)；r4c0-1 背身举手未用；r5c2-3 正面玩耍人工复查弃用
+	Willy: {
+		activity: [
+			A([[0, 4], [1, 4], [2, 4], [3, 4]], 2, { span: { w: 1, h: 2 } }),
+			A([[0, 7], [1, 7], [2, 7], [3, 7]], 2),
+		],
+	}, // 图集与 Dick 逐字节一致：r4+r5 竖向组合钓鱼(人物上格, 鱼线/浮漂垂入下格)；r7 侧面喝水；r6 坐姿帧人工复查弃用
+	Wizard: {
+		activity: A([[0, 5], [1, 5], [2, 5], [1, 5]], 2),
+	}, // r5 坩埚搅拌, 回插 c1 形成平滑往返(c3 空)；r4 施法手势人工复查弃用；无阅读/坐姿行, 全部单格无需 span
 };
 
 function N(name: string, visitHours: [number, number], persona: StardewPersona): StardewSpeciesDefinition {
@@ -331,7 +534,7 @@ function N(name: string, visitHours: [number, number], persona: StardewPersona):
 		frameHeight: 32,
 		scale: 1.5,
 		moveDist: 22,
-		animations: npcAnimations,
+		animations: { ...npcAnimations, ...(NPC_EXTRA_ANIMATIONS[name] ?? {}) },
 		persona,
 		visitHours,
 	};

@@ -1,5 +1,5 @@
 import { Plugin, Notice, WorkspaceLeaf, MarkdownView, ConfirmationModal } from "obsidian";
-import type { PetInstance, PetPluginData, SelectorOption } from "./core/types";
+import type { PetInstance, PetPluginData, RantResult, SelectorOption } from "./core/types";
 import { isNpcSpeciesType } from "./core/types";
 import { DEFAULT_DATA, NEW_NOTE_MESSAGES, getFallbackRantText, getFallbackBanterDialogue } from "./core/constants";
 import type { BanterLine } from "./core/constants";
@@ -287,7 +287,7 @@ export default class PetPlugin extends Plugin {
 
 	// ── Page rant (AI speech) ──────────────────────────────────
 
-	async getPageRantText(trigger: "timer" | "rightclick", petType?: string): Promise<string> {
+	async getPageRantText(trigger: "timer" | "rightclick", petType?: string): Promise<RantResult> {
 		const pageLabel = this.getCurrentPageLabel();
 		const npcName = petType ? (getStardewSpeciesDefinition(petType)?.label ?? petType) : "a villager";
 
@@ -325,7 +325,7 @@ export default class PetPlugin extends Plugin {
 		const pageContext = await this.getCurrentPageContextSnippet(this.instanceData.pageRantContextChars || 1200);
 		const activitySummary = this.getRecentActivitySummary(10);
 
-		let generated = "";
+		let generated: RantResult = { text: "" };
 		try {
 			generated = await generatePageRantText(
 				pageLabel, trigger, selectedText, pageContext,
@@ -342,11 +342,11 @@ export default class PetPlugin extends Plugin {
 			new Notice(`AI 模型调用失败，使用离线吐槽: ${errMsg}`, 5000);
 		}
 
-		if (generated) {
+		if (generated.text) {
 			void this.maybeExtractMemory(petType);
 			return generated;
 		}
-		return getFallbackRantText(pageLabel, trigger, this.instanceData.useChinesePrompt ?? false);
+		return { text: getFallbackRantText(pageLabel, trigger, this.instanceData.useChinesePrompt ?? false) };
 	}
 
 	// ── Banter (villager conversations) ────────────────────────
