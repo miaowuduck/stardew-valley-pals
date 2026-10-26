@@ -31,14 +31,18 @@ Bring the charming world of **Stardew Valley** into your Obsidian vault. Adopt a
 
 ---
 
-## ✨ What's new in 3.0 — villagers that *live* in your vault
+## ✨ What's new in 3.1 — little legs, fixed
+
+- **Toddler walking fixed.** The four toddler characters were using their floor/crawl sprite row as a side-facing travel animation, so moving left or right looked like sliding along the ground. They now walk with their regular left/right cycle.
+
+### Still fresh from 3.0 — villagers that *live* in your vault
 
 Previous versions used only the walking frames of each villager sprite sheet, so everyone did little more than pace around and stand still. 3.0 unlocks the full animation sets:
 
 - **Every villager has real animations again.** 41 characters, each hand-curated frame by frame from the original game sheets: gestures, sitting/resting poses, and character-specific activities.
 - **Villagers settle into a scene.** After walking somewhere, a villager picks something to do and sticks with it for **3–10 minutes** — Clint hammers at his anvil, Willy casts a line, Abigail plays her flute. Hovering, speech bubbles, and conversations still interrupt, and the activity resumes afterwards.
 - **The AI can act, not just talk.** Speech responses may include a body action (`gesture`, `rest`, or `activity`), so a villager can lean into what they're saying. A model that returns only text behaves exactly as before.
-- **Small touches:** a few villagers have the vanilla "shocked" hop-and-gesture reaction; skateboarders and toddlers use their side-facing travel frames while moving; frame rates were tuned per animation so nothing looks jittery or sped up.
+- **Small touches:** a few villagers have the vanilla "shocked" hop-and-gesture reaction; skateboarders use their side-facing travel frames while moving; frame rates were tuned per animation so nothing looks jittery or sped up.
 
 ---
 

@@ -495,18 +495,9 @@ const NPC_EXTRA_ANIMATIONS: Record<string, StardewSpeciesDefinition["animations"
 			A([[0, 5], [1, 5], [2, 5], [3, 5], [0, 6], [1, 6], [2, 6], [3, 6]], 3),
 		],
 	}, // r4 正面收银手势；r5→r6 正面操作→侧身递物→回正跨行序列；无坐姿/休息帧
-	Toddler: {
-		travel: A([[0, 5], [1, 5], [2, 5], [3, 5]], 2),
-	}, // r5 右向爬行作 travel；r4 正面张臂人工复查弃用；无坐姿/原地活动行
-	Toddler_dark: {
-		travel: A([[0, 5], [1, 5], [2, 5], [3, 5]], 2),
-	}, // 布局同 Toddler（已逐张核对）
-	Toddler_girl: {
-		travel: A([[0, 5], [1, 5], [2, 5], [3, 5]], 2),
-	}, // 布局同 Toddler（已逐张核对）
-	Toddler_girl_dark: {
-		travel: A([[0, 5], [1, 5], [2, 5], [3, 5]], 2),
-	}, // 布局同 Toddler_girl（已逐张核对）
+	// 小朋友（Toddler 系列）：图集只有 r0-3 是行走循环，r5 是趴地/爬行姿势。
+	// 之前把 r5 配成 travel 用于横向移动，结果走路时看起来像"坐下"的动画在
+	// 循环滑行，所以这里不再提供 travel，让小朋友正常使用左右行走帧。
 	Vincent: {
 		rest: A([[0, 6]], 1),
 		activity: [
