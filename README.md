@@ -1,5 +1,7 @@
 # 🐾 Stardew Valley Pals
 
+**English** · [简体中文](README.zh-CN.md)
+
 [![Obsidian](https://img.shields.io/badge/Obsidian-%23483699.svg?style=flat&logo=obsidian&logoColor=white)](https://obsidian.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Latest release](https://img.shields.io/github/v/release/miaowuduck/stardew-valley-pals?display_name=tag)](https://github.com/miaowuduck/stardew-valley-pals/releases)
