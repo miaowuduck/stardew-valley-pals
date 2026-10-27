@@ -31,3 +31,6 @@ data.json
 FIXES.md
 .claude/
 .venv/
+
+# Python cache
+__pycache__/
