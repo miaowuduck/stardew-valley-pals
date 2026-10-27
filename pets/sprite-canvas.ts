@@ -42,8 +42,12 @@ export class SpriteCanvas {
 		this.displayScale = displayScale;
 		this.variantOffset = variantOffset;
 
-		this.el = doc.createElement("canvas");
-		this.el.className = "pet-sprite";
+		this.el = createEl("canvas", { cls: "pet-sprite" });
+		// `createEl` always builds in the main document; popout views may pass
+		// another document, so adopt the canvas into it before creating the
+		// context. (Appending directly to `doc` is invalid — the observable
+		// `doc.createEl` would try to make the canvas the document's root.)
+		if (this.el.ownerDocument !== doc) doc.adoptNode(this.el);
 		const ctx = this.el.getContext("2d");
 		if (!ctx) throw new Error("Canvas 2D context is unavailable");
 		this.ctx = ctx;

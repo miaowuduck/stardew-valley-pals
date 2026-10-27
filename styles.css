@@ -24,7 +24,12 @@
 
 /* Remove all Obsidian chrome around the pet panel for a seamless look */
 
-/* Hide the tab bar (icon + title strip at top) — :has is needed for scoping */
+/* Hide the tab bar (icon + title strip at top).
+   :has is deliberate — CSS has no other parent selector, and toggling a
+   class from JS (the previous approach) made the chrome flash on open
+   before the class was applied. The selector is narrow (one ancestor of
+   the pet view leaf), so the invalidation cost is negligible here.
+   See the pet-view styles further down for the leaf itself. */
 .workspace-tabs:has(.workspace-leaf-content[data-type="pet-view"]) > .workspace-tab-header-container {
 	display: none;
 }
@@ -41,17 +46,22 @@
 	display: none;
 }
 
-/* Make the view content stretch edge-to-edge */
-.workspace-leaf-content[data-type="pet-view"] {
-	margin: 0 !important;
-	padding: 0 !important;
-	border: none !important;
+/* Make the view content stretch edge-to-edge.
+   The repeated class selectors raise specificity above Obsidian's
+   `.workspace-leaf-content .view-content` padding and the mobile
+   `.is-phone .mod-root .workspace-leaf-content .view-content` margin,
+   so no !important is needed. */
+.workspace-leaf-content[data-type="pet-view"].workspace-leaf-content {
+	margin: 0;
+	padding: 0;
+	border: none;
 }
 
-.workspace-leaf-content[data-type="pet-view"] > .view-content {
-	height: 100% !important;
-	margin: 0 !important;
-	padding: 0 !important;
+.workspace-leaf-content[data-type="pet-view"].workspace-leaf-content
+	> .view-content.view-content {
+	height: 100%;
+	margin: 0;
+	padding: 0;
 }
 
 .pet-view-wrapper {
