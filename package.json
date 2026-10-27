@@ -1,6 +1,6 @@
 {
 	"name": "stardew-valley-pals",
-	"version": "3.1.0",
+	"version": "3.1.1",
 	"description": "Bring Stardew Valley characters and pets into your Obsidian vault.",
 	"main": "main.js",
 	"scripts": {
