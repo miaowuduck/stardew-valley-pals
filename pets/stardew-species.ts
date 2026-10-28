@@ -397,8 +397,11 @@ const NPC_EXTRA_ANIMATIONS: Record<string, StardewSpeciesDefinition["animations"
 		rest: A([[0, 4]], 1),
 	}, // r4c0 轮椅坐姿, 唯一可用帧(c1 空, c2-3 填充)
 	Gus: {
-		activity: A([[0, 4], [1, 4], [2, 4], [3, 4]], 2),
-	}, // r4 烹饪/上菜
+		activity: [
+			A([[0, 4], [1, 4]], 2),
+			A([[2, 4], [3, 4]], 2),
+		],
+	}, // r4c0-1 拉小提琴; r4c2-3 擦盘子(两个动作分开, 不再混播)
 	Haley: {
 		activity: [
 			A([[3, 5]], 2),
