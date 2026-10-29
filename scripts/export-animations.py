@@ -196,9 +196,10 @@ def main() -> int:
                     region, _, _ = render_frame(img, c, r, fh, span)
                     canvas = checker(cw, chh)
                     canvas.paste(region, (ox, oy), region)
-                    # anchor-cell crosshair marker
+                    # anchor-cell crosshair marker: the anchor cell always lands
+                    # at (FRAME_W, fh) regardless of anchorX/anchorY.
                     cd = ImageDraw.Draw(canvas)
-                    cd.rectangle([ox, oy, ox + FRAME_W - 1, oy + fh - 1],
+                    cd.rectangle([FRAME_W, fh, FRAME_W + FRAME_W - 1, fh + fh - 1],
                                  outline=(255, 80, 80, 255))
                     big = canvas.resize((cw * SCALE, chh * SCALE), Image.NEAREST)
                     gif_frames.append(big)
