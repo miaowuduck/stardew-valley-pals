@@ -8,6 +8,7 @@ import type { RenderablePet } from "../pets/factory";
 import { createRantLoopScheduler, createViewRantLoopOptions } from "../ui/rant-loop";
 import { createBanterRunner, DROP_ONTO_RADIUS_PX } from "../ui/banter";
 import type { BanterRunner } from "../ui/banter";
+import { t } from "../core/i18n";
 
 export const VIEW_TYPE_PET = "pet-view";
 
@@ -30,7 +31,7 @@ export class PetView extends ItemView {
 	}
 
 	getDisplayText() {
-		return `${this.app.vault.getName()} Pets`;
+		return t("view.petsTitle", { vault: this.app.vault.getName() });
 	}
 
 	getIcon() {
@@ -74,14 +75,14 @@ export class PetView extends ItemView {
 			if (!existingEmpty) {
 				const emptyState = wrapper.createDiv({ cls: "pet-empty-state" });
 				emptyState.createDiv({ cls: "pet-empty-state-icon", text: "🐾" });
-				emptyState.createDiv({ cls: "pet-empty-state-title", text: "No pets yet!" });
+				emptyState.createDiv({ cls: "pet-empty-state-title", text: t("empty.noPets.title") });
 				emptyState.createDiv({
 					cls: "pet-empty-state-desc",
-					text: 'Use the ribbon icon or the "Add a pet" command to bring in your first companion.',
+					text: t("empty.noPets.desc"),
 				});
 				const addButton = emptyState.createEl("button", {
 					cls: "pet-empty-state-button",
-					text: "Add a pet",
+					text: t("empty.addPet"),
 				});
 				addButton.addEventListener("click", () => {
 					this.plugin.showAddPetCommand();
@@ -90,6 +91,15 @@ export class PetView extends ItemView {
 		} else {
 			existingEmpty?.remove();
 		}
+	}
+
+	/** Rebuild localized text after an interface-language change. */
+	refreshLocalizedUi(): void {
+		const container = this.containerEl.children[1];
+		const wrapper = container.querySelector(".pet-view-wrapper") as HTMLDivElement | null;
+		if (!wrapper) return;
+		wrapper.querySelector(".pet-empty-state")?.remove();
+		this.updateEmptyState(wrapper);
 	}
 
 	updatePetSize() {

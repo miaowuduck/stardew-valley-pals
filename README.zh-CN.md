@@ -92,17 +92,21 @@
 
 ## 🤖 可选：让村民开口说话
 
-1. 从 **OpenAI**、**Google Gemini**、**DeepSeek** 或任意 OpenAI 兼容服务获取 API key。
-2. 在 Obsidian 中打开 **设置 → Stardew Valley Pals → AI configuration**。
-3. 在 **API key secret** 中选择保存了 key 的 Obsidian secret（没有的话先在 Obsidian 的密钥管理器中创建一个），设置服务商的 **API endpoint** 和 **model**，然后点击 **Test connection**。
-4. 保持 **NPC speech** 开启，右键村民打个招呼。
+插件内置了 **DeepSeek** 配置向导，不需要先搞懂 API key 是什么。
 
-默认 endpoint 是 `https://api.openai.com/v1`，默认模型是 `gpt-5-mini`。所有 AI 交互都可以切换为中文输出（**Chinese language**）。
+1. 打开 **设置 → Stardew Valley Pals → AI 配置**，点击 **配置 DeepSeek**（也可以在命令面板运行 **配置 DeepSeek AI**）。
+2. 用手机号或微信登录 [platform.deepseek.com](https://platform.deepseek.com/sign_in)。第一次登录会自动注册。
+3. 用支付宝或微信支付小额充值。API 余额和 DeepSeek 网页版的免费对话是分开的。
+4. 在 API keys 页面创建一个密钥，复制以 `sk-` 开头的完整值（只显示一次）。
+5. 把密钥粘贴进向导，点击 **保存并测试**。插件会把它存进 Obsidian 的密钥存储，并自动验证连接。
+
+默认提供方是 DeepSeek，endpoint 为 `https://api.deepseek.com/v1`，模型为 `deepseek-flash`。OpenAI、Google Gemini 和其他 OpenAI 兼容服务仍可在 **AI 配置** 的高级字段中使用。**AI 台词使用中文** 与界面语言是两个独立设置。
 
 ## ⚙️ 设置速览
 
 | 设置 | 作用 |
 |---|---|
+| **Interface language（界面语言）** | 自动跟随 Obsidian，或强制使用 English / 简体中文 |
 | **Overlay mode（悬浮模式）** | 让宠物在整个窗口活动，而不是待在侧边面板 |
 | **Pet size / Movement speed（宠物大小 / 移动速度）** | 0.5× 到 3× 缩放，并调整宠物闲逛的速度 |
 | **My pets（我的宠物）** | 查看已领养的伙伴，移除其中任意一位 |
@@ -110,7 +114,7 @@
 | **NPC speech / Villager conversations（村民发言 / 村民对话）** | 开关 AI 对话和村民之间的聊天 |
 | **Core memories（核心记忆）** | 查看每位村民记住了什么，或全部清除 |
 | **Automatic rants（自动发言）** | 每小时消息数、对话频率，以及后台时是否保持安静 |
-| **AI configuration（AI 配置）** | Secret、endpoint、模型、语言和连接测试 |
+| **AI configuration（AI 配置）** | DeepSeek 配置向导，以及高级的 secret、endpoint、模型、台词语言和连接测试 |
 
 ## ⌨️ 命令
 
@@ -119,6 +123,7 @@
 | **Add a pet（添加宠物）** | 选择宠物或村民加入 |
 | **Remove a specific pet（移除指定宠物）** | 选择一位伙伴移除 |
 | **Remove all pets（移除全部宠物）** | 一次清空整个小镇 |
+| **Set up DeepSeek AI（配置 DeepSeek AI）** | 打开面向新手的 API 配置向导 |
 
 ## 🙏 致谢
 

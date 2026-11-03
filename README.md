@@ -92,17 +92,21 @@ Drop one villager onto another and they'll walk to a spot, turn to face each oth
 
 ## 🤖 Optional: give them a voice
 
-1. Get an API key from **OpenAI**, **Google Gemini**, **DeepSeek**, or any OpenAI-compatible provider.
-2. In Obsidian, open **Settings → Stardew Valley Pals → AI configuration**.
-3. Pick an Obsidian secret holding your key under **API key secret** (create one in Obsidian's secret manager if needed), set the provider's **API endpoint** and **model**, then hit **Test connection**.
-4. Leave **NPC speech** enabled and right-click a villager to say hello.
+The plugin ships with a guided **DeepSeek** setup, so you don't need to know what an API key is before you start.
 
-The default endpoint is `https://api.openai.com/v1` with the model `gpt-5-mini`. A **Chinese language** mode is available for all AI interactions.
+1. Open **Settings → Stardew Valley Pals → AI configuration** and click **Set up DeepSeek** (or run **Set up DeepSeek AI** from the command palette).
+2. **Sign in** at [platform.deepseek.com](https://platform.deepseek.com/sign_in) with your phone number or WeChat. First login creates your account automatically.
+3. **Top up** a small amount with Alipay or WeChat Pay. API credit is separate from DeepSeek's free web chat.
+4. **Create an API key** on the API keys page and copy the `sk-...` value. It is shown only once.
+5. Paste the key into the wizard and click **Save & test**. The plugin stores it in Obsidian's secret storage and verifies the connection for you.
+
+The default provider is DeepSeek with `https://api.deepseek.com/v1` and the model `deepseek-flash`. OpenAI, Google Gemini, and other OpenAI-compatible providers still work through the advanced fields under **AI configuration**. **AI dialogue in Chinese** is separate from the interface language.
 
 ## ⚙️ Settings at a glance
 
 | Setting | What it does |
 |---|---|
+| **Interface language** | Follow Obsidian automatically, or force English / 简体中文 |
 | **Overlay mode** | Roam the whole window instead of sitting in a side panel |
 | **Pet size / Movement speed** | Scale from 0.5× to 3× and set how briskly pets wander |
 | **My pets** | See everyone you've adopted and remove any of them |
@@ -110,7 +114,7 @@ The default endpoint is `https://api.openai.com/v1` with the model `gpt-5-mini`.
 | **NPC speech / Villager conversations** | Turn AI dialogue and villager-to-villager chats on or off |
 | **Core memories** | Review what each villager remembers, or clear it all |
 | **Automatic rants** | Messages per hour, conversation frequency, and whether to stay quiet in the background |
-| **AI configuration** | Secret, endpoint, model, language, and a connection test |
+| **AI configuration** | DeepSeek setup wizard, plus advanced secret, endpoint, model, dialogue language, and connection test |
 
 ## ⌨️ Commands
 
@@ -119,6 +123,7 @@ The default endpoint is `https://api.openai.com/v1` with the model `gpt-5-mini`.
 | **Add a pet** | Choose a pet or villager to bring in |
 | **Remove a specific pet** | Pick one companion to remove |
 | **Remove all pets** | Clear the whole town at once |
+| **Set up DeepSeek AI** | Open the beginner-friendly API setup wizard |
 
 ## 🙏 Credits
 

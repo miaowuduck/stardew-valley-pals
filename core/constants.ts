@@ -1,5 +1,18 @@
 import { type PetPluginData, type NpcAction } from "./types";
 
+// ── AI provider defaults ───────────────────────────────────────
+
+/** DeepSeek's OpenAI-compatible endpoint. */
+export const DEEPSEEK_BASE_URL = "https://api.deepseek.com/v1";
+/** Current default DeepSeek model: fast, cheap, and good enough for dialogue. */
+export const DEEPSEEK_DEFAULT_MODEL = "deepseek-flash";
+/** Plugin-owned SecretStorage id written by the setup wizard. */
+export const DEEPSEEK_SECRET_ID = "stardew-pals-deepseek-api-key";
+/** Shared fallback for the API endpoint field. */
+export const DEFAULT_BASE_URL = DEEPSEEK_BASE_URL;
+/** Bump when the onboarding flow changes enough to re-prompt users. */
+export const ONBOARDING_VERSION = 1;
+
 // ── Default plugin data ────────────────────────────────────────
 
 export const DEFAULT_DATA: Partial<PetPluginData> = {
@@ -10,8 +23,8 @@ export const DEFAULT_DATA: Partial<PetPluginData> = {
 	petSize: 1,
 	useChinesePrompt: false,
 	openAiApiKey: "",
-	openAiBaseUrl: "https://api.openai.com/v1",
-	selectedModel: "gpt-5-mini",
+	openAiBaseUrl: DEEPSEEK_BASE_URL,
+	selectedModel: DEEPSEEK_DEFAULT_MODEL,
 	pageRantEnabled: false,
 	pageRantPerHour: 4,
 	pageRantContextChars: 1200,
@@ -23,12 +36,15 @@ export const DEFAULT_DATA: Partial<PetPluginData> = {
 	banterPercent: 40,
 	memoryEnabled: true,
 	npcMemories: {},
+	uiLanguage: "auto",
+	onboardingVersion: 0,
+	deepseekSetupComplete: false,
 	firstRunComplete: false,
 };
 
 // ── New-note welcome messages ──────────────────────────────────
 
-export const NEW_NOTE_MESSAGES = [
+export const NEW_NOTE_MESSAGES_EN = [
 	"A fresh note has appeared!",
 	"Perfect time to write something down.",
 	"New ideas are ready to grow.",
@@ -65,6 +81,25 @@ export const NEW_NOTE_MESSAGES = [
 	"A bright little note just landed.",
 	"Write on, hooman! ✍️",
 ];
+
+export const NEW_NOTE_MESSAGES_ZH = [
+	"一篇新笔记出现了！",
+	"正好，现在写点什么吧。",
+	"新想法正在发芽。",
+	"这个笔记看起来值得留下来。",
+	"又一篇，又一个好开始。",
+	"灵感来得正是时候。",
+	"先记下来再说。",
+	"写得不错，保持这个节奏。",
+	"啪嗒啪嗒，新的文字在长出来。",
+	"汪！检测到新笔记！🐕",
+	"新一轮灵感，已送达。",
+	"慢慢写，不着急。",
+];
+
+export function getNewNoteMessages(useChinese: boolean): string[] {
+	return useChinese ? NEW_NOTE_MESSAGES_ZH : NEW_NOTE_MESSAGES_EN;
+}
 
 // ── Fallback rant templates (NPCs only — animals don't talk) ───
 

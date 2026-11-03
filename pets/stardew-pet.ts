@@ -4,6 +4,9 @@ import { SpriteCanvas } from "./sprite-canvas";
 import { getStardewSpeciesSprite, isNpcSpeciesType, toAnimation } from "./stardew-species";
 import type { StardewSpeciesDefinition, StardewAnimation } from "./stardew-species";
 import type { RantResult } from "../core/types";
+import { t } from "../core/i18n";
+import { classifyAiError } from "../ai/errors";
+import { getAiErrorCopy } from "../ui/ai-error-copy";
 
 function wait(ms: number): Promise<void> {
 	return new Promise((resolve) => window.setTimeout(resolve, ms));
@@ -294,9 +297,9 @@ export class StardewPet {
 					this.showHeart();
 				})
 				.catch((e: unknown) => {
-					const errMsg = e instanceof Error ? e.message : String(e);
-					console.error("Right-click rant failed:", e);
-					new Notice(`AI 模型调用失败: ${errMsg}`, 5000);
+					const copy = getAiErrorCopy(classifyAiError(e));
+					console.error("Right-click rant failed:", copy.short);
+					new Notice(t("notices.aiCallFailed", { error: copy.short }), 5000);
 					this.showHeart();
 				});
 		});

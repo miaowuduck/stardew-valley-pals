@@ -1,6 +1,7 @@
 import { Modal, App } from "obsidian";
 import type { SelectorOption } from "../core/types";
 import { SpriteCanvas } from "../pets/sprite-canvas";
+import { t } from "../core/i18n";
 
 export class SelectorModal extends Modal {
 	options: SelectorOption[];
@@ -142,7 +143,7 @@ export class SelectorModal extends Modal {
 		});
 
 		container.createDiv({
-			text: "Enter a name:",
+			text: t("modal.enterName"),
 			cls: "pet-name-title setting-item-heading",
 		});
 
@@ -151,14 +152,14 @@ export class SelectorModal extends Modal {
 		});
 		const input = form.createEl("input", {
 			type: "text",
-			placeholder: "Pet name...",
+			placeholder: t("modal.petNamePlaceholder"),
 			cls: "pet-name-input",
 		});
 		input.focus();
 
 		form.createEl("button", {
 			type: "submit",
-			text: "Submit",
+			text: t("modal.submit"),
 			cls: "pet-name-button",
 		});
 

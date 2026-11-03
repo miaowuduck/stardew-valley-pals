@@ -1,8 +1,27 @@
 import { Plugin, Notice, WorkspaceLeaf, MarkdownView, ConfirmationModal } from "obsidian";
-import type { PetInstance, PetPluginData, RantResult, SelectorOption } from "./core/types";
+import type {
+	PetInstance,
+	PetPluginData,
+	RantResult,
+	SelectorOption,
+	UiLanguagePreference,
+} from "./core/types";
 import { isNpcSpeciesType } from "./core/types";
-import { DEFAULT_DATA, NEW_NOTE_MESSAGES, getFallbackRantText, getFallbackBanterDialogue } from "./core/constants";
+import {
+	DEFAULT_DATA,
+	DEEPSEEK_BASE_URL,
+	DEEPSEEK_DEFAULT_MODEL,
+	DEFAULT_BASE_URL,
+	ONBOARDING_VERSION,
+	getFallbackBanterDialogue,
+	getFallbackRantText,
+	getNewNoteMessages,
+} from "./core/constants";
 import type { BanterLine } from "./core/constants";
+import { getUiLanguage, resolveUiLanguage, setUiLanguage, t } from "./core/i18n";
+import { classifyAiError } from "./ai/errors";
+import { getAiErrorCopy } from "./ui/ai-error-copy";
+import { DeepSeekSetupModal } from "./ui/onboarding";
 import { computeVisitors } from "./core/npc-schedule";
 import { getStardewSpeciesDefinition } from "./pets/stardew-species";
 import { PetView, VIEW_TYPE_PET } from "./views/pet-view";
@@ -11,6 +30,7 @@ import { PetSettingTab } from "./ui/settings";
 import { SelectorModal } from "./ui/modals";
 import { generateDialogue, generatePageRantText, extractMemory, initModel } from "./ai/chat";
 import { STARDEW_SPECIES_OPTIONS, getStardewSpeciesPersona } from "./pets/stardew-species";
+import { getSpeciesLabel } from "./pets/species-i18n";
 import type OpenAI from "openai";
 
 export type { PetInstance };
@@ -24,6 +44,8 @@ export default class PetPlugin extends Plugin {
 	private chatmodel: OpenAI | null = null;
 	private overlayView: OverlayPetView | null = null;
 	private lastMarkdownView: MarkdownView | null = null;
+	private ribbonEl: HTMLElement | null = null;
+	private deepseekModelMigrated = false;
 	/** Villagers currently in town under schedule mode (in-memory, recomputed from the clock). */
 	private currentVisitors: PetInstance[] = [];
 	protected readonly PETS: SelectorOption[] = STARDEW_SPECIES_OPTIONS;
@@ -32,17 +54,12 @@ export default class PetPlugin extends Plugin {
 
 	async onload(): Promise<void> {
 		await this.loadSettings();
-		this.initChatModel();
+		this.refreshChatModel({ quiet: true });
 
-		if (!this.instanceData.firstRunComplete) {
+		const wasFirstRun = !this.instanceData.firstRunComplete;
+		if (wasFirstRun) {
 			this.instanceData.firstRunComplete = true;
 			await this.saveData(this.instanceData);
-			this.app.workspace.onLayoutReady(() => {
-				new Notice(
-					"Welcome to Stardew Valley in Obsidian! Use the ribbon icon or the \"Add a pet\" command to bring in your first companion.",
-					8000,
-				);
-			});
 		}
 
 		this.registerView(VIEW_TYPE_PET, (leaf) => new PetView(leaf, this));
@@ -54,7 +71,7 @@ export default class PetPlugin extends Plugin {
 		// Keep villager visits in sync with the clock (no-op when schedule mode is off)
 		this.registerInterval(window.setInterval(() => this.syncVisitors(), VISITOR_SYNC_INTERVAL_MS));
 
-		this.addRibbonIcon("cat", "Toggle pet view", async () => {
+		this.ribbonEl = this.addRibbonIcon("cat", t("ribbon.togglePetView"), async () => {
 			if (this.instanceData.overlayMode) {
 				if (this.overlayView) {
 					this.overlayView.destroy();
@@ -94,6 +111,18 @@ export default class PetPlugin extends Plugin {
 					this.handleActiveLeafChange(leaf),
 				),
 			);
+
+			if (this.deepseekModelMigrated) {
+				new Notice(t("notices.deepseekModelMigrated"), 8000);
+			}
+
+			// First run: offer the DeepSeek wizard only when there is no AI
+			// config yet. Skipping closes it permanently (onboardingVersion).
+			if (wasFirstRun && !this.hasUsableAiConfig()) {
+				window.setTimeout(() => {
+					new DeepSeekSetupModal(this.app, this).open();
+				}, 250);
+			}
 		});
 	}
 
@@ -114,7 +143,52 @@ export default class PetPlugin extends Plugin {
 		delete raw.petSpeechEnabled;
 		delete raw.pageRantMinMinutes;
 		delete raw.pageRantMaxMinutes;
-		this.instanceData = Object.assign({}, DEFAULT_DATA, raw) as PetPluginData;
+
+		const nonempty = (value: unknown): value is string =>
+			typeof value === "string" && value.trim() !== "";
+		const hasAiConfig = ["openAiApiKey", "openAiBaseUrl", "selectedModel"]
+			.some((key) => nonempty(raw[key]));
+		const rawBase = nonempty(raw.openAiBaseUrl) ? raw.openAiBaseUrl.trim() : undefined;
+		const rawModel = nonempty(raw.selectedModel) ? raw.selectedModel.trim() : undefined;
+		const rawIsDeepSeek = rawBase ? /api\.deepseek\.com/i.test(rawBase) : false;
+
+		// Preserve an existing provider. Only brand-new installs get DeepSeek
+		// defaults, so upgrading never silently switches anyone's endpoint.
+		const legacyOpenAiBase = "https://api.openai.com/v1";
+		const legacyOpenAiModel = "gpt-5-mini";
+		const defaults: Partial<PetPluginData> = {
+			...DEFAULT_DATA,
+			openAiBaseUrl: hasAiConfig
+				? (rawBase ?? legacyOpenAiBase)
+				: DEEPSEEK_BASE_URL,
+			selectedModel: hasAiConfig
+				? (rawModel ?? (rawIsDeepSeek ? DEEPSEEK_DEFAULT_MODEL : legacyOpenAiModel))
+				: DEEPSEEK_DEFAULT_MODEL,
+		};
+		this.instanceData = Object.assign({}, defaults, raw) as PetPluginData;
+
+		let needsSave = false;
+
+		// Normalize blank values that may have slipped through older saves.
+		if (!this.instanceData.openAiBaseUrl?.trim()) {
+			this.instanceData.openAiBaseUrl = defaults.openAiBaseUrl ?? DEEPSEEK_BASE_URL;
+			needsSave = true;
+		}
+		if (!this.instanceData.selectedModel?.trim()) {
+			this.instanceData.selectedModel = defaults.selectedModel ?? DEEPSEEK_DEFAULT_MODEL;
+			needsSave = true;
+		}
+
+		// DeepSeek retired deepseek-chat / deepseek-reasoner in 2026.
+		if (
+			/api\.deepseek\.com/i.test(this.instanceData.openAiBaseUrl) &&
+			(this.instanceData.selectedModel === "deepseek-chat" ||
+				this.instanceData.selectedModel === "deepseek-reasoner")
+		) {
+			this.instanceData.selectedModel = DEEPSEEK_DEFAULT_MODEL;
+			this.deepseekModelMigrated = true;
+			needsSave = true;
+		}
 
 		if (!this.instanceData.nextPetIdCounters) {
 			this.instanceData.nextPetIdCounters = {};
@@ -123,14 +197,42 @@ export default class PetPlugin extends Plugin {
 			this.instanceData.npcMemories = {};
 		}
 
+		// Interface language: `auto` follows Obsidian; anything else is an
+		// explicit override. Resolve before deriving other defaults.
+		const pref = this.instanceData.uiLanguage;
+		if (pref !== "auto" && pref !== "zh" && pref !== "en") {
+			this.instanceData.uiLanguage = "auto";
+			needsSave = true;
+		}
+		setUiLanguage(resolveUiLanguage(this.instanceData.uiLanguage ?? "auto"));
+
+		// Brand-new users get AI dialogue in their interface language.
+		if (!("useChinesePrompt" in raw) && raw.firstRunComplete !== true) {
+			this.instanceData.useChinesePrompt = resolveUiLanguage(
+				this.instanceData.uiLanguage ?? "auto",
+			) === "zh";
+			needsSave = true;
+		}
+
+		// Existing users should not be surprised by a new onboarding modal.
+		if (raw.firstRunComplete === true && raw.onboardingVersion === undefined) {
+			this.instanceData.onboardingVersion = ONBOARDING_VERSION;
+			needsSave = true;
+		}
+
 		// Clean up counters for species that no longer exist
 		for (const type of Object.keys(this.instanceData.nextPetIdCounters)) {
 			if (!getStardewSpeciesDefinition(type)) {
 				delete this.instanceData.nextPetIdCounters[type];
+				needsSave = true;
 			}
 		}
 
 		this.migratePets();
+
+		if (needsSave) {
+			await this.saveData(this.instanceData);
+		}
 	}
 
 	/**
@@ -156,21 +258,114 @@ export default class PetPlugin extends Plugin {
 		void this.saveData(this.instanceData);
 	}
 
-	// ── Init ───────────────────────────────────────────────────
+	// ── AI configuration ───────────────────────────────────────
 
-	private initChatModel() {
-		if (!this.instanceData.selectedModel || this.instanceData.selectedModel === "none") return;
+	/** The model every AI call should use. */
+	getSelectedModel(): string {
+		return this.instanceData.selectedModel?.trim() || DEEPSEEK_DEFAULT_MODEL;
+	}
+
+	/** Rebuild the live OpenAI client after any key/endpoint/model change. */
+	refreshChatModel(opts: { quiet?: boolean } = {}): boolean {
+		const model = this.getSelectedModel();
+		if (!model || model === "none") {
+			this.chatmodel = null;
+			return false;
+		}
 		const keyName = this.instanceData.openAiApiKey?.trim();
 		const key = keyName ? this.app.secretStorage.getSecret(keyName) : null;
-		if (!key) return;
+		if (!key) {
+			this.chatmodel = null;
+			if (!opts.quiet) new Notice(t("notices.selectSecretFirst"));
+			return false;
+		}
 		try {
 			this.chatmodel = initModel(
 				key,
-				this.instanceData.openAiBaseUrl,
+				this.instanceData.openAiBaseUrl?.trim() || DEFAULT_BASE_URL,
 			);
+			return true;
 		} catch (e) {
 			console.warn("Failed to initialize chat model:", e);
-			new Notice("Could not initialize AI model. Check API keys and model selection in settings.");
+			this.chatmodel = null;
+			if (!opts.quiet) new Notice(t("notices.aiInitFailed"));
+			return false;
+		}
+	}
+
+	/** Persist a config patch and refresh the client in one step. */
+	async applyAiConfig(
+		patch: Partial<Pick<PetPluginData, "openAiApiKey" | "openAiBaseUrl" | "selectedModel">>,
+		opts: { quiet?: boolean; save?: boolean } = {},
+	): Promise<boolean> {
+		Object.assign(this.instanceData, patch);
+		if (opts.save !== false) {
+			await this.saveData(this.instanceData);
+		}
+		return this.refreshChatModel({ quiet: opts.quiet ?? true });
+	}
+
+	/** True when a secret resolves and a model is selected. */
+	hasUsableAiConfig(): boolean {
+		const name = this.instanceData.openAiApiKey?.trim();
+		if (!name) return false;
+		if (!this.app.secretStorage.getSecret(name)) return false;
+		const model = this.getSelectedModel();
+		return !!model && model !== "none";
+	}
+
+	isDeepSeekConfigured(): boolean {
+		return this.hasUsableAiConfig() &&
+			/api\.deepseek\.com/i.test(this.instanceData.openAiBaseUrl ?? "");
+	}
+
+	async markOnboardingSeen(): Promise<void> {
+		if (this.instanceData.onboardingVersion === ONBOARDING_VERSION) return;
+		this.instanceData.onboardingVersion = ONBOARDING_VERSION;
+		await this.saveData(this.instanceData);
+	}
+
+	async markDeepSeekSetupComplete(): Promise<void> {
+		this.instanceData.deepseekSetupComplete = true;
+		this.instanceData.onboardingVersion = ONBOARDING_VERSION;
+		await this.saveData(this.instanceData);
+	}
+
+	updateUiLanguage(pref: UiLanguagePreference, opts: { silent?: boolean } = {}): void {
+		this.instanceData.uiLanguage = pref;
+		void this.saveData(this.instanceData);
+		setUiLanguage(resolveUiLanguage(pref));
+
+		const label = t("ribbon.togglePetView");
+		this.ribbonEl?.setAttribute("aria-label", label);
+		this.ribbonEl?.setAttribute("data-tooltip", label);
+
+		for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_PET)) {
+			if (leaf.view instanceof PetView) leaf.view.refreshLocalizedUi();
+		}
+		if (!opts.silent) {
+			new Notice(t("notices.languageRestartHint"), 8000);
+		}
+	}
+
+	/** Reset settings without touching pets or what villagers remember. */
+	async resetSettingsToDefaults(): Promise<void> {
+		const preserved: Partial<PetPluginData> = {
+			pets: this.instanceData.pets,
+			nextPetIdCounters: this.instanceData.nextPetIdCounters,
+			npcMemories: this.instanceData.npcMemories,
+			firstRunComplete: true,
+			onboardingVersion: this.instanceData.onboardingVersion ?? ONBOARDING_VERSION,
+		};
+		Object.assign(this.instanceData, DEFAULT_DATA, preserved, {
+			deepseekSetupComplete: false,
+		});
+		setUiLanguage(resolveUiLanguage(this.instanceData.uiLanguage ?? "auto"));
+		await this.saveData(this.instanceData);
+		this.refreshChatModel({ quiet: true });
+		this.syncVisitors();
+		for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_PET)) {
+			if (leaf.view instanceof PetView) leaf.view.refreshLocalizedUi();
 		}
 	}
 
@@ -246,7 +441,7 @@ export default class PetPlugin extends Plugin {
 	getCurrentPageLabel(): string {
 		const activeFile = this.app.workspace.getActiveFile();
 		if (activeFile) return activeFile.basename;
-		return this.app.workspace.getMostRecentLeaf()?.view?.getDisplayText?.() ?? "当前页面";
+		return this.app.workspace.getMostRecentLeaf()?.view?.getDisplayText?.() ?? t("notices.currentPage");
 	}
 
 	private async getCurrentPageContextSnippet(maxChars: number): Promise<string> {
@@ -333,13 +528,13 @@ export default class PetPlugin extends Plugin {
 				npcName,
 				petType ? getStardewSpeciesPersona(petType) : undefined,
 				petType ? this.getNpcMemories(petType) : [],
-				this.chatmodel, this.instanceData.selectedModel || "gpt-5-mini",
+				this.chatmodel, this.getSelectedModel(),
 				this.instanceData.useChinesePrompt ?? false,
 			);
 		} catch (e: unknown) {
-			const errMsg = (e as { message?: string })?.message || String(e);
+			const copy = getAiErrorCopy(classifyAiError(e));
 			console.error("Page rant generation failed:", e);
-			new Notice(`AI 模型调用失败，使用离线吐槽: ${errMsg}`, 5000);
+			new Notice(t("notices.aiCallFailed", { error: copy.short }), 5000);
 		}
 
 		if (generated.text) {
@@ -361,7 +556,7 @@ export default class PetPlugin extends Plugin {
 			nameA, getStardewSpeciesPersona(typeA), this.getNpcMemories(typeA),
 			nameB, getStardewSpeciesPersona(typeB), this.getNpcMemories(typeB),
 			pageLabel, pageContext,
-			this.chatmodel, this.instanceData.selectedModel || "gpt-5-mini",
+			this.chatmodel, this.getSelectedModel(),
 			this.instanceData.useChinesePrompt ?? false,
 		);
 
@@ -416,7 +611,7 @@ export default class PetPlugin extends Plugin {
 		const pageContext = await this.getCurrentPageContextSnippet(1500);
 		const fact = await extractMemory(
 			pageLabel, pageContext, npcName, this.getNpcMemories(petType),
-			this.chatmodel, this.instanceData.selectedModel || "gpt-5-mini",
+			this.chatmodel, this.getSelectedModel(),
 			this.instanceData.useChinesePrompt ?? false,
 		);
 		if (fact) {
@@ -429,24 +624,22 @@ export default class PetPlugin extends Plugin {
 	private registerCommands() {
 		this.addCommand({
 			id: "add-pet-dropdown",
-			name: "Add a pet",
+			name: t("commands.addPet"),
 			callback: () => this.showAddPetCommand(),
 		});
 		this.addCommand({
 			id: "clear-all-pets",
-			name: "Remove all pets",
+			name: t("commands.removeAllPets"),
 			callback: () => {
 				const modal = new ConfirmationModal(this.app);
-				modal.setTitle("Remove all pets?");
-				modal.setContent(
-					"This will remove every pet and NPC from your vault. This action cannot be undone. Continue?",
-				);
+				modal.setTitle(t("confirm.removeAllPets.title"));
+				modal.setContent(t("confirm.removeAllPets.body"));
 				modal.addButton((btn) => {
-					btn.setButtonText("Remove all")
+					btn.setButtonText(t("confirm.removeAllPets.button"))
 						.setDestructive()
 						.onClick(async () => {
 							await this.clearAllPets();
-							new Notice("All pets have been removed.");
+							new Notice(t("notices.allPetsRemoved"));
 						});
 				});
 				modal.addCancelButton();
@@ -455,15 +648,25 @@ export default class PetPlugin extends Plugin {
 		});
 		this.addCommand({
 			id: "remove-pet-by-id",
-			name: "Remove a specific pet",
+			name: t("commands.removePet"),
 			callback: () => {
-				const options = this.instanceData.pets.map((pet) => ({
-					value: pet.id,
-					label: `${pet.name} (${this.getCleanLabel(pet.id)})`,
-				}));
+				const options = this.instanceData.pets.map((pet) => {
+					const typeLabel = getStardewSpeciesDefinition(pet.type)?.label ?? pet.type;
+					return {
+						value: pet.id,
+						label: `${pet.name} (${getSpeciesLabel(pet.type, typeLabel)})`,
+					};
+				});
 				new SelectorModal(this.app, options, async (value: string) => {
 					await this.removePetById(value);
 				}).open();
+			},
+		});
+		this.addCommand({
+			id: "setup-deepseek-ai",
+			name: t("commands.setupDeepSeek"),
+			callback: () => {
+				new DeepSeekSetupModal(this.app, this).open();
 			},
 		});
 	}
@@ -472,7 +675,8 @@ export default class PetPlugin extends Plugin {
 		this.app.workspace.onLayoutReady(() => {
 			this.registerEvent(
 				this.app.vault.on("create", () => {
-					const msg = NEW_NOTE_MESSAGES[Math.floor(Math.random() * NEW_NOTE_MESSAGES.length)];
+					const messages = getNewNoteMessages(getUiLanguage() === "zh");
+					const msg = messages[Math.floor(Math.random() * messages.length)];
 					new Notice(msg);
 				}),
 			);
@@ -487,14 +691,18 @@ export default class PetPlugin extends Plugin {
 				.map((p) => p.type),
 		);
 		const options = this.PETS.map((option) => {
-			if (!isNpcSpeciesType(option.value)) return option;
+			const localized = {
+				...option,
+				label: getSpeciesLabel(option.value, option.label),
+			};
+			if (!isNpcSpeciesType(option.value)) return localized;
 			if (scheduleMode) {
-				return { ...option, disabled: true, disabledReason: "Visits on a schedule" };
+				return { ...localized, disabled: true, disabledReason: t("notices.scheduleOnly") };
 			}
 			if (presentNpcTypes.has(option.value)) {
-				return { ...option, disabled: true, disabledReason: "Already in town" };
+				return { ...localized, disabled: true, disabledReason: t("notices.alreadyInTown") };
 			}
-			return option;
+			return localized;
 		});
 
 		new SelectorModal(this.app, options, async (value: string, name: string) => {
@@ -587,7 +795,7 @@ export default class PetPlugin extends Plugin {
 				for (const npc of manualNpcs) {
 					this.removePetFromViews(npc.id);
 				}
-				new Notice("Villager visits enabled — manually added villagers have gone home for now.");
+				new Notice(t("notices.villagerVisitsEnabled"));
 			}
 			await this.saveData(this.instanceData);
 			this.syncVisitors();
@@ -599,7 +807,7 @@ export default class PetPlugin extends Plugin {
 				this.removePetFromViews(visitor.id);
 			}
 			if (leaving.length > 0) {
-				new Notice("Villager visits disabled — the visitors have gone home.");
+				new Notice(t("notices.villagerVisitsDisabled"));
 			}
 		}
 	}
@@ -609,7 +817,6 @@ export default class PetPlugin extends Plugin {
 		if (!this.instanceData.npcScheduleEnabled) return;
 
 		const targetIds = computeVisitors(new Date(), this.instanceData.maxVisitors || 3);
-		const cn = this.instanceData.useChinesePrompt ?? false;
 
 		// Arrivals
 		for (const id of targetIds) {
@@ -619,7 +826,7 @@ export default class PetPlugin extends Plugin {
 			const visitor: PetInstance = { id, type: id, name: def.label };
 			this.currentVisitors.push(visitor);
 			this.addPetToViews(visitor);
-			new Notice(cn ? `${def.label} 来到了你的笔记旁。` : `${def.label} is in town.`);
+			new Notice(t("notices.villagerArrived", { name: def.label }));
 		}
 
 		// Departures
@@ -627,7 +834,7 @@ export default class PetPlugin extends Plugin {
 			if (targetIds.includes(visitor.id)) continue;
 			this.currentVisitors = this.currentVisitors.filter((v) => v.id !== visitor.id);
 			this.removePetFromViews(visitor.id);
-			new Notice(cn ? `${visitor.name} 回家了。` : `${visitor.name} headed home.`);
+			new Notice(t("notices.villagerLeft", { name: visitor.name }));
 		}
 	}
 
@@ -645,11 +852,11 @@ export default class PetPlugin extends Plugin {
 		if (isNpcSpeciesType(type)) {
 			// Villagers are unique characters with fixed names
 			if (this.instanceData.npcScheduleEnabled) {
-				new Notice(`${def.label} visits on their own schedule while villager visits are enabled.`);
+				new Notice(t("notices.villagerScheduleConflict", { name: def.label }));
 				return;
 			}
 			if (this.instanceData.pets.some((p) => p.type === type)) {
-				new Notice(`${def.label} is already in town.`);
+				new Notice(t("notices.villagerAlreadyInTown", { name: def.label }));
 				return;
 			}
 			id = type;
@@ -734,8 +941,13 @@ export default class PetPlugin extends Plugin {
 
 	// ── Settings updaters ──────────────────────────────────────
 
-	updateOpenAiApiKey(v: string) { this.updateSetting("openAiApiKey", v); }
-	updateOpenAiBaseUrl(v: string) { this.updateSetting("openAiBaseUrl", v); }
+	updateOpenAiApiKey(v: string) {
+		void this.applyAiConfig({ openAiApiKey: v.trim() });
+	}
+
+	updateOpenAiBaseUrl(v: string) {
+		void this.applyAiConfig({ openAiBaseUrl: v.trim() || DEFAULT_BASE_URL });
+	}
 	updateChinesePrompt(v: boolean) { this.updateSetting("useChinesePrompt", v); }
 	updatePageRantEnabled(v: boolean) { this.updateSetting("pageRantEnabled", v); }
 	updateNpcSpeechEnabled(v: boolean) { this.updateSetting("npcSpeechEnabled", v); }
@@ -752,27 +964,12 @@ export default class PetPlugin extends Plugin {
 	}
 
 	updateChosenModel(selectedModel: string): void {
-		this.instanceData.selectedModel = selectedModel.trim() || "gpt-5-mini";
-		void this.saveData(this.instanceData);
-
-		try {
-			const keyName = this.instanceData.openAiApiKey?.trim();
-			const key = keyName ? this.app.secretStorage.getSecret(keyName) : null;
-			if (!key) {
-				new Notice("Select an API key secret in settings first.");
-				this.chatmodel = null;
-				return;
-			}
-			this.chatmodel = initModel(
-				key,
-				this.instanceData.openAiBaseUrl,
-			);
-			new Notice(`Model set to ${this.instanceData.selectedModel}.`);
-		} catch (e) {
-			console.error("Failed to initialize model after selection:", e);
-			new Notice("Could not initialize model. Check API key, endpoint, and model.");
-			this.chatmodel = null;
-		}
+		const model = selectedModel.trim() || DEEPSEEK_DEFAULT_MODEL;
+		void this.applyAiConfig({ selectedModel: model }, { quiet: true }).then((ok) => {
+			new Notice(ok
+				? t("notices.modelSet", { model })
+				: t("notices.modelInitFailed"));
+		});
 	}
 
 	updatePetSize(value: number): void {

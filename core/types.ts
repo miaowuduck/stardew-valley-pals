@@ -6,6 +6,9 @@ export interface PetInstance {
 	name: string;
 }
 
+/** How the plugin picks its interface language. `auto` follows Obsidian. */
+export type UiLanguagePreference = "auto" | "zh" | "en";
+
 export interface PetPluginData {
 	pets: PetInstance[];
 	nextPetIdCounters: Record<string, number>;
@@ -34,6 +37,12 @@ export interface PetPluginData {
 	memoryEnabled: boolean;
 	/** Per-NPC core memories, keyed by NPC species type. */
 	npcMemories: Record<string, string[]>;
+	/** Interface language override; `auto` follows the Obsidian UI language. */
+	uiLanguage?: UiLanguagePreference;
+	/** Highest onboarding version the user has seen (prevents repeat auto-prompts). */
+	onboardingVersion?: number;
+	/** Set after a successful DeepSeek connection test. */
+	deepseekSetupComplete?: boolean;
 	firstRunComplete?: boolean;
 }
 

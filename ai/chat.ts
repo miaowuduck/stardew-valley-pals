@@ -187,15 +187,14 @@ export async function generatePageRantText(
 	);
 
 	try {
-		const response = await model.chat.completions.create({
+		const response = await createChatCompletion(model, {
 			model: selectedModel,
 			messages: [{ role: "user", content: prompt }],
 		});
 		return parseRantResponse(response.choices[0].message.content || "");
 	} catch (e: unknown) {
-		const msg = (e as { message?: string })?.message || String(e);
 		console.error("Page rant generation failed:", e);
-		throw new Error(`AI 模型调用失败: ${msg}`);
+		throw e;
 	}
 }
 
@@ -370,7 +369,7 @@ export async function generateDialogue(
 	);
 
 	try {
-		const response = await model.chat.completions.create({
+		const response = await createChatCompletion(model, {
 			model: selectedModel,
 			messages: [{ role: "user", content: prompt }],
 		});
@@ -416,10 +415,10 @@ ${existingMemories.length > 0 ? existingMemories.map((m) => `- ${m}`).join("\n")
 If there's a new fact worth remembering, output it as a single short sentence (max 12 words, third person, e.g. "The user is writing a fantasy novel"). Otherwise output exactly NONE. Output nothing else.`;
 
 	try {
-		const response = await model.chat.completions.create({
+		const response = await createChatCompletion(model, {
 			model: selectedModel,
 			messages: [{ role: "user", content: prompt }],
-			max_tokens: 80,
+			max_tokens: 256,
 		});
 		const text = cleanSingleLine(response.choices[0].message.content || "");
 		if (!text || /^none$/i.test(text)) return null;
@@ -435,10 +434,66 @@ If there's a new fact worth remembering, output it as a single short sentence (m
 export function initModel(
 	openAiKey: string,
 	openAiBaseUrl: string,
+	options?: { timeout?: number; maxRetries?: number },
 ) {
 	return new OpenAI({
 		apiKey: openAiKey,
 		baseURL: openAiBaseUrl,
 		dangerouslyAllowBrowser: true,
+		...options,
 	});
+}
+
+function isDeepSeekClient(client: OpenAI): boolean {
+	try {
+		return /api\.deepseek\.com/i.test(client.baseURL ?? "");
+	} catch {
+		return false;
+	}
+}
+
+/**
+ * DeepSeek's newer models think by default, which adds latency and can swallow
+ * short `max_tokens` budgets. The plugin only needs short in-character lines,
+ * so turn thinking off for DeepSeek endpoints. Other providers get no extra
+ * fields, so their APIs stay untouched.
+ */
+async function createChatCompletion(
+	client: OpenAI,
+	params: Record<string, unknown>,
+) {
+	const body = isDeepSeekClient(client)
+		? { ...params, thinking: { type: "disabled" } }
+		: params;
+	// The OpenAI Node SDK forwards unknown body fields at runtime.
+	return client.chat.completions.create(body as never);
+}
+
+export interface ChatProbeResult {
+	ok: boolean;
+	reply?: string;
+	error?: unknown;
+}
+
+/** Send one tiny message to verify key, endpoint, and model. */
+export async function probeChatModel(
+	key: string,
+	baseUrl: string,
+	model: string,
+	timeoutMs = 20000,
+): Promise<ChatProbeResult> {
+	try {
+		const client = initModel(key, baseUrl, { timeout: timeoutMs, maxRetries: 0 });
+		const response = await createChatCompletion(client, {
+			model,
+			messages: [{ role: "user", content: "Reply with OK." }],
+			max_tokens: 16,
+		});
+		return {
+			ok: true,
+			reply: response.choices[0]?.message?.content?.trim() ?? "",
+		};
+	} catch (error) {
+		return { ok: false, error };
+	}
 }

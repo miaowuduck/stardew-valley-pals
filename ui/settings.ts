@@ -11,13 +11,16 @@ import type {
 } from "obsidian";
 import type PetPlugin from "../main";
 import type { PetPluginData } from "../core/types";
-import { initModel } from "../ai/chat";
+import { probeChatModel } from "../ai/chat";
+import { classifyAiError } from "../ai/errors";
+import { getAiErrorCopy } from "./ai-error-copy";
+import { DeepSeekSetupModal } from "./onboarding";
 import { getStardewSpeciesDefinition } from "../pets/stardew-species";
-import { DEFAULT_DATA } from "../core/constants";
+import { getSpeciesLabel } from "../pets/species-i18n";
+import { DEFAULT_BASE_URL } from "../core/constants";
+import { t } from "../core/i18n";
 
 type SettingKey = Extract<keyof PetPluginData, string>;
-
-const DEFAULT_BASE_URL = "https://api.openai.com/v1";
 
 // ── Settings Tab ─────────────────────────────────────────────────
 
@@ -44,6 +47,10 @@ export class PetSettingTab extends PluginSettingTab {
 	async setControlValue(key: string, value: unknown): Promise<void> {
 		const plugin = this.plugin;
 		switch (key as SettingKey) {
+			case "uiLanguage":
+				plugin.updateUiLanguage(value as "auto" | "zh" | "en");
+				this.update();
+				break;
 			case "overlayMode":
 				await plugin.setOverlayMode(value as boolean);
 				break;
@@ -115,11 +122,25 @@ export class PetSettingTab extends PluginSettingTab {
 			// ── Display ─────────────────────────────────────────
 			{
 				type: "group",
-				heading: "Display",
+				heading: t("settings.group.display"),
 				items: [
 					{
-						name: "Overlay mode",
-						desc: "Pets roam freely across the entire Obsidian window on a transparent overlay. Disable to keep pets in a dockable side panel.",
+						name: t("settings.language.name"),
+						desc: t("settings.language.desc"),
+						control: {
+							type: "dropdown",
+							key: "uiLanguage",
+							options: {
+								auto: t("settings.language.auto"),
+								en: t("settings.language.en"),
+								zh: t("settings.language.zh"),
+							},
+							defaultValue: "auto",
+						},
+					},
+					{
+						name: t("settings.overlayMode.name"),
+						desc: t("settings.overlayMode.desc"),
 						control: {
 							type: "toggle",
 							key: "overlayMode",
@@ -127,8 +148,8 @@ export class PetSettingTab extends PluginSettingTab {
 						},
 					},
 					{
-						name: "Pet size",
-						desc: "Scale all pets from half to triple size.",
+						name: t("settings.petSize.name"),
+						desc: t("settings.petSize.desc"),
 						control: {
 							type: "slider",
 							key: "petSize",
@@ -140,8 +161,8 @@ export class PetSettingTab extends PluginSettingTab {
 						},
 					},
 					{
-						name: "Movement speed",
-						desc: "How quickly pets wander around. Higher = faster.",
+						name: t("settings.petSpeed.name"),
+						desc: t("settings.petSpeed.desc"),
 						control: {
 							type: "slider",
 							key: "petSpeed",
@@ -158,23 +179,23 @@ export class PetSettingTab extends PluginSettingTab {
 			// ── My pets ───────────────────────────────────────
 			this.petList(),
 			{
-				name: "Remove all pets",
-				desc: "Permanently remove every pet and NPC from your vault.",
+				name: t("settings.removeAllPets.name"),
+				desc: t("settings.removeAllPets.desc"),
 				visible: () => data.pets.length > 0,
 				render: (setting) => {
 					setting.addButton((btn) => {
-						btn.setButtonText("Clear all")
+						btn.setButtonText(t("settings.removeAllPets.button"))
 							.setDestructive()
 							.onClick(() => {
 								this.confirm(
-									"Remove all pets?",
-									"This will permanently remove every pet and NPC from your vault. This cannot be undone.",
-									"Clear all",
+									t("confirm.removeAllPets.title"),
+									t("confirm.removeAllPets.body"),
+									t("confirm.removeAllPets.button"),
 									async () => {
 										await this.plugin.clearAllPets();
 										this.update();
 										new Notice(
-											"All pets have been removed.",
+											t("notices.allPetsRemoved"),
 										);
 									},
 								);
@@ -186,11 +207,11 @@ export class PetSettingTab extends PluginSettingTab {
 			// ── Villager visits ───────────────────────────────
 			{
 				type: "group",
-				heading: "Villager visits",
+				heading: t("settings.group.villagerVisits"),
 				items: [
 					{
-						name: "Scheduled visits",
-						desc: "Villagers arrive and leave automatically according to their own visiting hours. Manually added villagers go home while this is on. Pets are unaffected.",
+						name: t("settings.scheduledVisits.name"),
+						desc: t("settings.scheduledVisits.desc"),
 						control: {
 							type: "toggle",
 							key: "npcScheduleEnabled",
@@ -198,8 +219,8 @@ export class PetSettingTab extends PluginSettingTab {
 						},
 					},
 					{
-						name: "Max visitors",
-						desc: "How many villagers can be in town at the same time.",
+						name: t("settings.maxVisitors.name"),
+						desc: t("settings.maxVisitors.desc"),
 						visible: () => data.npcScheduleEnabled,
 						control: {
 							type: "slider",
@@ -212,7 +233,7 @@ export class PetSettingTab extends PluginSettingTab {
 						},
 					},
 					{
-						name: "Currently in town",
+						name: t("settings.currentlyInTown.name"),
 						desc: this.visitorSummary(),
 						visible: () => data.npcScheduleEnabled,
 					},
@@ -222,11 +243,34 @@ export class PetSettingTab extends PluginSettingTab {
 			// ── AI configuration ──────────────────────────────
 			{
 				type: "group",
-				heading: "AI configuration",
+				heading: t("settings.group.ai"),
 				items: [
 					{
-						name: "API key secret",
-						desc: "Select a secret from Obsidian's SecretStorage. Create one via the vault's security settings first.",
+						name: t("settings.aiSetup.name"),
+						desc: this.plugin.isDeepSeekConfigured()
+							? t("settings.aiSetup.readyDesc")
+							: this.plugin.hasUsableAiConfig()
+								? t("settings.aiSetup.otherProviderDesc")
+								: t("settings.aiSetup.desc"),
+						render: (setting) => {
+							setting.addButton((btn) => {
+								btn.setButtonText(
+									this.plugin.isDeepSeekConfigured()
+										? t("settings.aiSetup.reconfigure")
+										: t("settings.aiSetup.button"),
+								)
+									.setCta()
+									.onClick(() => {
+										new DeepSeekSetupModal(this.app, this.plugin, {
+											onDone: () => this.update(),
+										}).open();
+									});
+							});
+						},
+					},
+					{
+						name: t("settings.apiKey.name"),
+						desc: t("settings.apiKey.desc"),
 						render: (setting) => {
 							setting.addComponent((el) =>
 								new SecretComponent(this.app, el)
@@ -238,8 +282,8 @@ export class PetSettingTab extends PluginSettingTab {
 						},
 					},
 					{
-						name: "API endpoint",
-						desc: "OpenAI-compatible base URL. Use the default for OpenAI, or change for DeepSeek / custom providers.",
+						name: t("settings.apiEndpoint.name"),
+						desc: t("settings.apiEndpoint.desc"),
 						control: {
 							type: "text",
 							key: "openAiBaseUrl",
@@ -248,18 +292,18 @@ export class PetSettingTab extends PluginSettingTab {
 						},
 					},
 					{
-						name: "Model",
-						desc: "Model name for your provider, e.g. gpt-4o-mini, deepseek-chat, deepseek-v4-flash.",
+						name: t("settings.model.name"),
+						desc: t("settings.model.desc"),
 						control: {
 							type: "text",
 							key: "selectedModel",
-							placeholder: "gpt-4o-mini",
-							defaultValue: "gpt-5-mini",
+							placeholder: "deepseek-flash",
+							defaultValue: "deepseek-flash",
 						},
 					},
 					{
-						name: "Chinese language",
-						desc: "Generate speech bubbles in Chinese. Disable for English.",
+						name: t("settings.aiDialogueChinese.name"),
+						desc: t("settings.aiDialogueChinese.desc"),
 						control: {
 							type: "toggle",
 							key: "useChinesePrompt",
@@ -267,11 +311,11 @@ export class PetSettingTab extends PluginSettingTab {
 						},
 					},
 					{
-						name: "Test connection",
-						desc: "Send a minimal request to verify your API key, endpoint, and model.",
+						name: t("settings.testConnection.name"),
+						desc: t("settings.testConnection.desc"),
 						render: (setting) => {
 							setting.addButton((btn) => {
-								btn.setButtonText("Test connection")
+								btn.setButtonText(t("settings.testConnection.button"))
 									.setCta()
 									.onClick(() => this.testConnection(btn));
 							});
@@ -283,11 +327,11 @@ export class PetSettingTab extends PluginSettingTab {
 			// ── Speech bubbles ────────────────────────────────
 			{
 				type: "group",
-				heading: "Speech bubbles",
+				heading: t("settings.group.speech"),
 				items: [
 					{
-						name: "NPC speech",
-						desc: "Allow Stardew Valley villagers to show speech bubbles with their unique personalities. Animals stay silent — they express themselves with hearts.",
+						name: t("settings.npcSpeech.name"),
+						desc: t("settings.npcSpeech.desc"),
 						control: {
 							type: "toggle",
 							key: "npcSpeechEnabled",
@@ -295,8 +339,8 @@ export class PetSettingTab extends PluginSettingTab {
 						},
 					},
 					{
-						name: "Villager conversations",
-						desc: "Two villagers occasionally walk up to each other, face off, and chat on the automatic speech timer. Nearby animals gather to watch.",
+						name: t("settings.banter.name"),
+						desc: t("settings.banter.desc"),
 						control: {
 							type: "toggle",
 							key: "banterEnabled",
@@ -309,11 +353,11 @@ export class PetSettingTab extends PluginSettingTab {
 			// ── Villager memory ───────────────────────────────
 			{
 				type: "group",
-				heading: "Villager memory",
+				heading: t("settings.group.memory"),
 				items: [
 					{
-						name: "Core memories",
-						desc: "After speaking, a villager may distill a durable fact about you (e.g. a long-term project) and remember it in future conversations.",
+						name: t("settings.memory.name"),
+						desc: t("settings.memory.desc"),
 						control: {
 							type: "toggle",
 							key: "memoryEnabled",
@@ -324,23 +368,23 @@ export class PetSettingTab extends PluginSettingTab {
 			},
 			...(memories ? [memories] : []),
 			{
-				name: "Clear all memories",
-				desc: "Every villager forgets everything they learned about you.",
+				name: t("settings.clearMemories.name"),
+				desc: t("settings.clearMemories.desc"),
 				visible: () => this.hasMemories(),
 				render: (setting) => {
 					setting.addButton((btn) => {
-						btn.setButtonText("Clear all")
+						btn.setButtonText(t("settings.clearMemories.button"))
 							.setDestructive()
 							.onClick(() => {
 								this.confirm(
-									"Clear all villager memories?",
-									"Every villager will forget what they learned about you. This cannot be undone.",
-									"Clear all",
+									t("confirm.clearMemories.title"),
+									t("confirm.clearMemories.body"),
+									t("confirm.clearMemories.button"),
 									async () => {
 										await this.plugin.clearNpcMemories();
 										this.update();
 										new Notice(
-											"All villager memories cleared.",
+											t("notices.allMemoriesCleared"),
 										);
 									},
 								);
@@ -352,11 +396,11 @@ export class PetSettingTab extends PluginSettingTab {
 			// ── Automatic rants ───────────────────────────────
 			{
 				type: "group",
-				heading: "Automatic rants",
+				heading: t("settings.group.rants"),
 				items: [
 					{
-						name: "Enable automatic rants",
-						desc: "Villagers will occasionally speak up on their own, at the average rate set below.",
+						name: t("settings.rants.enabled.name"),
+						desc: t("settings.rants.enabled.desc"),
 						control: {
 							type: "toggle",
 							key: "pageRantEnabled",
@@ -364,8 +408,8 @@ export class PetSettingTab extends PluginSettingTab {
 						},
 					},
 					{
-						name: "Only rant when focused",
-						desc: "Suppress automatic rants while Obsidian is in the background. Right-click rants are always allowed.",
+						name: t("settings.rants.focused.name"),
+						desc: t("settings.rants.focused.desc"),
 						control: {
 							type: "toggle",
 							key: "pageRantOnlyWhenFocused",
@@ -373,8 +417,8 @@ export class PetSettingTab extends PluginSettingTab {
 						},
 					},
 					{
-						name: "Messages per hour",
-						desc: "Average number of automatic speech bubbles per hour. Timing varies naturally around this rate.",
+						name: t("settings.rants.perHour.name"),
+						desc: t("settings.rants.perHour.desc"),
 						control: {
 							type: "slider",
 							key: "pageRantPerHour",
@@ -386,8 +430,8 @@ export class PetSettingTab extends PluginSettingTab {
 						},
 					},
 					{
-						name: "Conversation frequency",
-						desc: "Percentage of automatic speech events that become a chat between two villagers instead of a solo comment.",
+						name: t("settings.rants.frequency.name"),
+						desc: t("settings.rants.frequency.desc"),
 						control: {
 							type: "slider",
 							key: "banterPercent",
@@ -400,8 +444,8 @@ export class PetSettingTab extends PluginSettingTab {
 						},
 					},
 					{
-						name: "Page context length",
-						desc: "Characters from your current note sent to the AI. More = better awareness, but costs more tokens.",
+						name: t("settings.rants.context.name"),
+						desc: t("settings.rants.context.desc"),
 						control: {
 							type: "slider",
 							key: "pageRantContextChars",
@@ -418,31 +462,25 @@ export class PetSettingTab extends PluginSettingTab {
 			// ── Danger zone ───────────────────────────────────
 			{
 				type: "group",
-				heading: "Danger zone",
+				heading: t("settings.group.danger"),
 				items: [
 					{
-						name: "Reset settings",
-						desc: "Restores every setting to its original value. Pets stay right where they are.",
+						name: t("settings.reset.name"),
+						desc: t("settings.reset.desc"),
 						render: (setting) => {
 							setting.addButton((btn) => {
-								btn.setButtonText("Reset to defaults")
+								btn.setButtonText(t("settings.reset.button"))
 									.setDestructive()
 									.onClick(() => {
 										this.confirm(
-											"Reset settings to defaults?",
-											"All settings will be restored to their original values. Your pets will not be removed.",
-											"Reset to defaults",
+											t("confirm.reset.title"),
+											t("confirm.reset.body"),
+											t("confirm.reset.button"),
 											async () => {
-												Object.assign(
-													this.plugin.instanceData,
-													DEFAULT_DATA,
-												);
-												await this.plugin.saveData(
-													this.plugin.instanceData,
-												);
+												await this.plugin.resetSettingsToDefaults();
 												this.update();
 												new Notice(
-													"Settings have been reset to defaults.",
+													t("notices.settingsReset"),
 												);
 											},
 										);
@@ -462,7 +500,7 @@ export class PetSettingTab extends PluginSettingTab {
 		const pets = this.plugin.instanceData.pets;
 		return {
 			type: "list",
-			heading: "My pets",
+			heading: t("settings.myPets.heading"),
 			emptyState: createFragment((frag) => {
 				const empty = frag.createDiv({ cls: "pet-settings-empty" });
 				empty.createDiv({
@@ -470,12 +508,12 @@ export class PetSettingTab extends PluginSettingTab {
 					text: "🐾",
 				});
 				empty.createEl("p", {
-					text: "No pets yet! Add your first companion with the add button.",
+					text: t("settings.myPets.empty"),
 					cls: "pet-settings-empty-text",
 				});
 			}),
 			addItem: {
-				name: "Add pet",
+				name: t("settings.addPet.name"),
 				action: () => {
 					this.plugin.showAddPetCommand(() => this.update());
 				},
@@ -485,13 +523,16 @@ export class PetSettingTab extends PluginSettingTab {
 				if (!pet) return;
 				void this.plugin.removePetById(pet.id).then(() => this.update());
 			},
-			items: pets.map((pet) => ({
-				name: pet.name,
-				desc: `Type: ${
-					getStardewSpeciesDefinition(pet.type)?.label ?? pet.type
-				}`,
-				searchable: false,
-			})),
+			items: pets.map((pet) => {
+				const typeLabel = getStardewSpeciesDefinition(pet.type)?.label ?? pet.type;
+				return {
+					name: pet.name,
+					desc: t("settings.petType", {
+						type: getSpeciesLabel(pet.type, typeLabel),
+					}),
+					searchable: false,
+				};
+			}),
 		};
 	}
 
@@ -511,14 +552,22 @@ export class PetSettingTab extends PluginSettingTab {
 				if (!entry) return;
 				void this.plugin.clearNpcMemories(entry.type).then(() => this.update());
 			},
-			items: entries.map(({ type, memories }) => ({
-				name:
-					getStardewSpeciesDefinition(type)?.label ?? type,
-				desc: `${memories.length} ${
-					memories.length === 1 ? "memory" : "memories"
-				}: ${memories.join(" · ")}`,
-				searchable: false,
-			})),
+			items: entries.map(({ type, memories }) => {
+				const typeLabel = getStardewSpeciesDefinition(type)?.label ?? type;
+				return {
+					name: getSpeciesLabel(type, typeLabel),
+					desc: t(
+						memories.length === 1
+							? "settings.memory.count.one"
+							: "settings.memory.count.other",
+						{
+							count: memories.length,
+							memories: memories.join(" · "),
+						},
+					),
+					searchable: false,
+				};
+			}),
 		};
 	}
 
@@ -532,7 +581,7 @@ export class PetSettingTab extends PluginSettingTab {
 	private visitorSummary(): string {
 		const visitors = this.plugin.getCurrentVisitors();
 		if (visitors.length === 0) {
-			return "Nobody right now — check back at a different hour. Each villager keeps their own schedule.";
+			return t("settings.currentlyInTown.none");
 		}
 		return visitors.map((v) => v.name).join(", ");
 	}
@@ -569,41 +618,43 @@ export class PetSettingTab extends PluginSettingTab {
 		const model = this.plugin.instanceData.selectedModel?.trim();
 
 		if (!key) {
-			new Notice("Please select an API key secret first.", 5000);
+			new Notice(t("settings.testConnection.noKey"), 5000);
 			return;
 		}
 		if (!baseUrl) {
-			new Notice("Please enter an API endpoint.", 5000);
+			new Notice(t("settings.testConnection.noEndpoint"), 5000);
 			return;
 		}
 		if (!model) {
-			new Notice("Please enter a model name.", 5000);
+			new Notice(t("settings.testConnection.noModel"), 5000);
 			return;
 		}
 
-		btn.setButtonText("Testing…");
+		btn.setButtonText(t("settings.testConnection.testing"));
 		btn.setDisabled(true);
 
 		try {
-			const client = initModel(key, baseUrl);
-			const resp = await client.chat.completions.create({
-				model,
-				messages: [{ role: "user", content: "Say 'ok'" }],
-				max_tokens: 20,
-			});
-			const reply = resp.choices[0]?.message?.content?.trim() || "";
-			new Notice(
-				reply
-					? `✅ Connected — "${reply}"`
-					: "✅ Connection successful!",
-				6000,
-			);
-		} catch (e: unknown) {
-			const msg = (e as { message?: string })?.message || String(e);
-			console.error("API test failed:", e);
-			new Notice(`❌ Connection failed: ${msg}`, 8000);
+			const result = await probeChatModel(key, baseUrl, model);
+			if (result.ok) {
+				new Notice(
+					result.reply
+						? t("notices.aiTestSuccess", { reply: result.reply })
+						: t("notices.aiTestSuccessNoReply"),
+					6000,
+				);
+			} else {
+				const info = classifyAiError(result.error);
+				const copy = getAiErrorCopy(info);
+				console.error("API test failed:", info);
+				new Notice(
+					t("notices.aiTestFailed", {
+						message: `${copy.title} — ${copy.body}`,
+					}),
+					10000,
+				);
+			}
 		} finally {
-			btn.setButtonText("Test connection");
+			btn.setButtonText(t("settings.testConnection.button"));
 			btn.setDisabled(false);
 		}
 	}
