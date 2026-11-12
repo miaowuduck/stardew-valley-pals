@@ -44,6 +44,8 @@ export interface PetPluginData {
 	/** Set after a successful DeepSeek connection test. */
 	deepseekSetupComplete?: boolean;
 	firstRunComplete?: boolean;
+	/** Set after the one-time mobile gesture tip has been shown. */
+	mobileGestureTipSeen?: boolean;
 }
 
 // ── UI types ───────────────────────────────────────────────────

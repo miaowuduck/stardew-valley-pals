@@ -40,6 +40,7 @@ export const DEFAULT_DATA: Partial<PetPluginData> = {
 	onboardingVersion: 0,
 	deepseekSetupComplete: false,
 	firstRunComplete: false,
+	mobileGestureTipSeen: false,
 };
 
 // ── New-note welcome messages ──────────────────────────────────

@@ -1,6 +1,6 @@
 import { App, Modal, Notice, SecretComponent } from "obsidian";
 import type PetPlugin from "../main";
-import { t, getUiLanguage } from "../core/i18n";
+import { t, tMobile, getUiLanguage } from "../core/i18n";
 import {
 	DEEPSEEK_BASE_URL,
 	DEEPSEEK_DEFAULT_MODEL,
@@ -403,7 +403,10 @@ export class DeepSeekSetupModal extends Modal {
 	private renderDone(container: HTMLElement): void {
 		container.createEl("h2", { cls: "pet-onboarding-title", text: t("onboarding.done.title") });
 		this.callout(container, "success", t("onboarding.done.lede"));
-		this.paragraph(container, t("onboarding.done.body"));
+		this.paragraph(
+			container,
+			tMobile("onboarding.done.body", "onboarding.done.bodyMobile"),
+		);
 
 		const actions = container.createDiv({ cls: "pet-onboarding-done-actions" });
 		const add = actions.createEl("button", {
@@ -569,7 +572,10 @@ export class DeepSeekSetupModal extends Modal {
 			this.keyDraft = "";
 			this.step = "done";
 			this.render();
-			new Notice(t("notices.deepseekReady"), 8000);
+			new Notice(
+				tMobile("notices.deepseekReady", "notices.deepseekReadyMobile"),
+				8000,
+			);
 		} else {
 			this.testState = "error";
 			this.errorInfo = classifyAiError(result.error);

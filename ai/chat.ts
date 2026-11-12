@@ -50,7 +50,7 @@ function buildPageRantPrompt(
 		return `你是星露谷游戏里的角色「${npcName}」，出现在用户的 Obsidian 笔记旁边。说出一句这个角色在游戏对话里真正会说的话。
 ${personaSection}
 笔记标题：${pageLabel}
-触发：${trigger === "timer" ? "你路过瞟了一眼" : "用户右键点了你一下"}
+触发：${trigger === "timer" ? "你路过瞟了一眼" : "用户长按或右键点了你一下"}
 用户当地时间：${getLocalTimeDescription(true)}
 ${contextSection}
 ${selectionSection}
@@ -72,7 +72,7 @@ ${memorySection}
 	return `You are ${npcName} from Stardew Valley, hanging around the user's Obsidian note. Say one line of dialogue that could appear verbatim in the game's dialogue files.
 ${personaSection}
 Note title: ${pageLabel}
-Trigger: ${trigger === "timer" ? "you glanced at the note while passing by" : "the user right-clicked you"}
+Trigger: ${trigger === "timer" ? "you glanced at the note while passing by" : "the user long-pressed or right-clicked you"}
 User's local time: ${getLocalTimeDescription(false)}
 ${contextSection}
 ${selectionSection}

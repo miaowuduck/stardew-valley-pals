@@ -5,6 +5,7 @@ import { createRenderablePet } from "../pets/factory";
 import { createRantLoopScheduler, createViewRantLoopOptions } from "../ui/rant-loop";
 import { createBanterRunner, DROP_ONTO_RADIUS_PX } from "../ui/banter";
 import type { BanterRunner } from "../ui/banter";
+import { isMobileUi } from "../core/platform";
 
 export class OverlayPetView {
 	private overlayEl: HTMLElement;
@@ -42,9 +43,20 @@ export class OverlayPetView {
 			}, 100);
 		};
 		this.win.addEventListener("resize", this.resizeHandler);
+		// iOS often reports keyboard/orientation changes only on visualViewport.
+		this.win.visualViewport?.addEventListener("resize", this.resizeHandler);
 	}
 
 	private updateOverlayBounds() {
+		if (isMobileUi()) {
+			// CSS owns the mobile insets: it reserves the fixed view header, the
+			// floating mobile navbar and the on-screen keyboard using Obsidian's
+			// own variables (safe areas cannot be read reliably from JS).
+			this.overlayEl.style.removeProperty("--overlay-top");
+			this.overlayEl.style.removeProperty("--overlay-bottom");
+			return;
+		}
+
 		const selectors = [".titlebar", ".workspace-tab-header-container"];
 		const candidates: HTMLElement[] = [];
 		for (const sel of selectors) {
@@ -71,7 +83,10 @@ export class OverlayPetView {
 		) || 0;
 		if (trafficY > topOffset) topOffset = trafficY;
 
-		this.overlayEl.setCssProps({ "--overlay-top": `${topOffset}px` });
+		this.overlayEl.setCssProps({
+			"--overlay-top": `${topOffset}px`,
+			"--overlay-bottom": "0px",
+		});
 	}
 
 	addPet(singlePet: PetInstance) {
@@ -146,6 +161,7 @@ export class OverlayPetView {
 
 	destroy() {
 		this.win.removeEventListener("resize", this.resizeHandler);
+		this.win.visualViewport?.removeEventListener("resize", this.resizeHandler);
 		if (this.resizeTimer !== null) {
 			this.win.clearTimeout(this.resizeTimer);
 			this.resizeTimer = null;

@@ -18,9 +18,9 @@ Adopt pixel pets, invite 41 Stardew Valley villagers into your workspace, and le
 
 - 🐾 **A workspace that feels alive.** Cats, dogs, chickens, junimos and more wander, nap and ask for attention while you write.
 - 🧑‍🌾 **41 villagers, each one themselves.** Abigail plays her flute, Clint hammers at his anvil, Emily dances. Every animation is hand-picked from the original game sheets.
-- 💬 **They notice your notes.** With an AI provider connected, right-click a villager for an in-character comment on whatever you're writing.
+- 💬 **They notice your notes.** With an AI provider connected, right-click (or long-press) a villager for an in-character comment on whatever you're writing.
 - 🧠 **They remember you.** Villagers hold on to a few core memories — your novel, your exams, your favourite tea — and bring them up later.
-- 🪟 **Panel or overlay.** Keep everyone in a dockable side panel, or let them roam the whole Obsidian window.
+- 🪟 **Panel or overlay.** Keep everyone in a dockable side panel, or let them roam the whole Obsidian window — on desktop, tablet, and phone.
 
 ## Meet the villagers
 
@@ -36,7 +36,7 @@ Turn on **Scheduled visits** and Pelican Town comes to you. Everyone keeps their
 
 Nine species — cats, dogs, chickens, cows, ducks, dinosaurs, parrots, junimos and turtles — with **40 colour combinations**. Name them whatever you like and adopt as many as you want.
 
-They wander, sit, sleep, and never say a word. Click one for a heart.
+They wander, sit, sleep, and never say a word. Click or tap one for a heart.
 
 ## They read over your shoulder
 
@@ -44,7 +44,7 @@ They wander, sit, sleep, and never say a word. Click one for a heart.
 
 Connect an OpenAI-compatible AI provider and villagers can:
 
-- **comment on your current note** when you right-click them;
+- **comment on your current note** when you right-click them on desktop or long-press them on mobile;
 - **speak up on their own** at a natural, adjustable rate;
 - **remember durable facts about you** and bring them up in later conversations.
 
@@ -60,9 +60,19 @@ Drop one villager onto another and they'll walk to a spot, turn to face each oth
 
 ## Two ways to hang out
 
-- **Panel mode** — a resizable pet panel you can dock anywhere in your workspace.
+- **Panel mode** — a resizable pet panel you can dock anywhere in your workspace. On mobile it opens in its own tab, with the usual back button.
 - **Overlay mode** — a transparent layer over the entire Obsidian window, so pets stay with you as you move between notes.
-- **Interact** — drag anyone to a new spot, click for a heart, or right-click a villager to talk.
+- **Interact** — drag anyone to a new spot, click or tap for a heart, or right-click / long-press a villager to talk.
+
+### On mobile
+
+The plugin works on Obsidian for **Android and iOS** as well as desktop. New mobile installs start in overlay mode, so pets float above the note you are writing; switch to panel mode in settings if you would rather give them their own tab.
+
+- **Tap** a pet for a heart.
+- **Drag** to move it — drop one villager onto another to start a conversation.
+- **Long-press** a villager to hear what they think of your current note.
+
+The ribbon icon or the **Toggle pet view** command shows and hides them.
 
 ## 🚀 Get started
 
@@ -70,7 +80,7 @@ Drop one villager onto another and they'll walk to a spot, turn to face each oth
 2. **Adopt a companion.** Open the pet panel with the 🐱 ribbon icon, then run **Add a pet** from the command palette and pick a pet or villager. Pets can be named.
 3. **Make it yours.** Open **Settings → Stardew Valley Pals** to switch between panel and overlay, change size and speed, or turn on scheduled visits.
 
-> **Desktop only.** Requires Obsidian 1.13 or newer.
+> **Desktop, tablet, and phone.** Requires Obsidian 1.13 or newer.
 
 <details>
 <summary><strong>Install with BRAT or manually</strong></summary>
@@ -120,6 +130,8 @@ Under **Settings → AI configuration**:
 - **API key secret** — local servers usually don't authenticate, so you can leave it empty. If your proxy requires one, create a secret as usual.
 
 Click **Test connection**. If it fails, a dialog shows the effective URL, model, HTTP status, and the server's response. The same details are written to the developer console (`Ctrl+Shift+I` → Console, prefixed with `[Stardew Valley Pals]`), which is what to attach to a bug report.
+
+**From a phone or tablet**, `127.0.0.1` means the device itself. Use your computer's LAN IP instead — for example `http://192.168.1.20:11434/v1` — and make the server listen on `0.0.0.0`. Both devices must be on the same Wi-Fi. On iOS, allow Local Network access when prompted. HTTPS is more reliable than plain `http://` because some mobile systems block cleartext traffic.
 
 ## ⚙️ Settings at a glance
 

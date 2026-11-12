@@ -9,6 +9,7 @@ import { createRantLoopScheduler, createViewRantLoopOptions } from "../ui/rant-l
 import { createBanterRunner, DROP_ONTO_RADIUS_PX } from "../ui/banter";
 import type { BanterRunner } from "../ui/banter";
 import { t } from "../core/i18n";
+import { isMobileUi } from "../core/platform";
 
 export const VIEW_TYPE_PET = "pet-view";
 
@@ -46,7 +47,34 @@ export class PetView extends ItemView {
 
 		this.updateView();
 		this.setupResizeObserver();
+		this.updateHeaderInset();
+		// The fixed mobile header may settle one frame after the view opens.
+		window.setTimeout(() => this.updateHeaderInset(), 300);
 		this.startRantLoop();
+	}
+
+	/**
+	 * Mobile Obsidian can position the view header over the content
+	 * (`--view-header-position: fixed` in floating-nav/auto-full-screen mode).
+	 * Pets live in the content box, so reserve the overlapping header area.
+	 * With a static header the overlap is zero and nothing changes.
+	 */
+	private updateHeaderInset() {
+		if (!isMobileUi()) return;
+		const contentEl = this.containerEl.children[1] as HTMLElement | undefined;
+		if (!contentEl) return;
+		const header = this.containerEl.querySelector<HTMLElement>(":scope > .view-header");
+		const overlap = header
+			? Math.max(
+					0,
+					header.getBoundingClientRect().bottom -
+						contentEl.getBoundingClientRect().top,
+				)
+			: 0;
+		const next = overlap > 0 ? `${Math.round(overlap)}px` : "";
+		if (contentEl.style.paddingTop !== next) {
+			contentEl.style.paddingTop = next;
+		}
 	}
 
 	updateView() {
@@ -216,6 +244,7 @@ export class PetView extends ItemView {
 			}
 			this.resizeTimeout = window.setTimeout(() => {
 				this.resizeTimeout = undefined;
+				this.updateHeaderInset();
 				this.resetPets();
 			}, 250);
 		});

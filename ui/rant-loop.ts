@@ -1,5 +1,6 @@
 import type PetPlugin from "../main";
 import type { RantResult } from "../core/types";
+import { isDocumentActive } from "../core/platform";
 
 // ── Types ──────────────────────────────────────────────────────
 
@@ -55,7 +56,7 @@ export function createRantLoopScheduler(opts: RantLoopOptions) {
 				if (stopped) return;
 
 				if (opts.isEnabled()) {
-					if (opts.onlyWhenFocused() && !activeDocument.hasFocus()) {
+					if (opts.onlyWhenFocused() && !isDocumentActive(activeDocument)) {
 						scheduleNext();
 						return;
 					}

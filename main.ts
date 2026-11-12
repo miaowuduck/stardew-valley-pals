@@ -1,4 +1,4 @@
-import { Plugin, Notice, WorkspaceLeaf, MarkdownView, ConfirmationModal } from "obsidian";
+import { Plugin, Notice, WorkspaceLeaf, MarkdownView, ConfirmationModal, TFile } from "obsidian";
 import type {
 	PetInstance,
 	PetPluginData,
@@ -19,6 +19,7 @@ import {
 } from "./core/constants";
 import type { BanterLine } from "./core/constants";
 import { getUiLanguage, resolveUiLanguage, setUiLanguage, t } from "./core/i18n";
+import { getDefaultOverlayMode, isMobileUi } from "./core/platform";
 import { classifyAiError, describeAiError } from "./ai/errors";
 import {
 	isDeepSeekEndpoint,
@@ -76,23 +77,8 @@ export default class PetPlugin extends Plugin {
 		// Keep villager visits in sync with the clock (no-op when schedule mode is off)
 		this.registerInterval(window.setInterval(() => this.syncVisitors(), VISITOR_SYNC_INTERVAL_MS));
 
-		this.ribbonEl = this.addRibbonIcon("cat", t("ribbon.togglePetView"), async () => {
-			if (this.instanceData.overlayMode) {
-				if (this.overlayView) {
-					this.overlayView.destroy();
-					this.overlayView = null;
-				} else {
-					this.overlayView = new OverlayPetView(this);
-					for (const pet of this.getPetList()) {
-						this.overlayView.addPet(pet);
-					}
-					this.overlayView.startRantLoop();
-				}
-			} else {
-				const isOpen = this.app.workspace.getLeavesOfType(VIEW_TYPE_PET).length > 0;
-				if (isOpen) await this.closeView();
-				else await this.openView();
-			}
+		this.ribbonEl = this.addRibbonIcon("cat", t("ribbon.togglePetView"), () => {
+			void this.togglePets();
 		});
 
 		this.app.workspace.onLayoutReady(async () => {
@@ -107,10 +93,19 @@ export default class PetPlugin extends Plugin {
 				}
 				this.overlayView.startRantLoop();
 			} else {
-				if (this.app.workspace.getLeavesOfType(VIEW_TYPE_PET).length === 0) {
+				if (isMobileUi()) {
+					// A vault synced from desktop may have saved the pet panel in
+					// the left sidebar, which is unreachable on mobile. Drop it; the
+					// user can reopen it as a main-area tab from the ribbon/command.
+					for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_PET)) {
+						if (leaf.getRoot() !== this.app.workspace.rootSplit) leaf.detach();
+					}
+				} else if (this.app.workspace.getLeavesOfType(VIEW_TYPE_PET).length === 0) {
+					// Desktop keeps its dockable panel visible across restarts.
 					await this.openView();
 				}
 			}
+			this.maybeShowMobileGestureTip();
 			this.registerEvent(
 				this.app.workspace.on("active-leaf-change", (leaf) =>
 					this.handleActiveLeafChange(leaf),
@@ -161,8 +156,13 @@ export default class PetPlugin extends Plugin {
 		// defaults, so upgrading never silently switches anyone's endpoint.
 		const legacyOpenAiBase = "https://api.openai.com/v1";
 		const legacyOpenAiModel = "gpt-5-mini";
+		// A new mobile install starts with pets floating over the note; desktop
+		// keeps its dockable panel. An existing preference always wins (vaults
+		// synced from another device keep their chosen mode).
+		const rawOverlay = typeof raw.overlayMode === "boolean" ? raw.overlayMode : undefined;
 		const defaults: Partial<PetPluginData> = {
 			...DEFAULT_DATA,
+			overlayMode: rawOverlay ?? getDefaultOverlayMode(),
 			openAiBaseUrl: hasAiConfig
 				? (rawBase ?? legacyOpenAiBase)
 				: DEEPSEEK_BASE_URL,
@@ -173,6 +173,11 @@ export default class PetPlugin extends Plugin {
 		this.instanceData = Object.assign({}, defaults, raw) as PetPluginData;
 
 		let needsSave = false;
+
+		if (typeof this.instanceData.overlayMode !== "boolean") {
+			this.instanceData.overlayMode = getDefaultOverlayMode();
+			needsSave = true;
+		}
 
 		// Normalize blank values that may have slipped through older saves.
 		if (!this.instanceData.openAiBaseUrl?.trim()) {
@@ -376,18 +381,27 @@ export default class PetPlugin extends Plugin {
 
 	/** Reset settings without touching pets or what villagers remember. */
 	async resetSettingsToDefaults(): Promise<void> {
+		const previousOverlay = this.instanceData.overlayMode;
 		const preserved: Partial<PetPluginData> = {
 			pets: this.instanceData.pets,
 			nextPetIdCounters: this.instanceData.nextPetIdCounters,
 			npcMemories: this.instanceData.npcMemories,
 			firstRunComplete: true,
 			onboardingVersion: this.instanceData.onboardingVersion ?? ONBOARDING_VERSION,
+			mobileGestureTipSeen: this.instanceData.mobileGestureTipSeen ?? false,
 		};
 		Object.assign(this.instanceData, DEFAULT_DATA, preserved, {
 			deepseekSetupComplete: false,
 		});
 		setUiLanguage(resolveUiLanguage(this.instanceData.uiLanguage ?? "auto"));
 		await this.saveData(this.instanceData);
+		if (this.instanceData.overlayMode !== previousOverlay) {
+			// Applying the mode through setOverlayMode tears down/creates the
+			// matching view; just flipping the flag would leave the old one alive.
+			const nextOverlay = this.instanceData.overlayMode;
+			this.instanceData.overlayMode = previousOverlay;
+			await this.setOverlayMode(nextOverlay);
+		}
 		this.refreshChatModel({ quiet: true });
 		this.syncVisitors();
 		for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_PET)) {
@@ -464,9 +478,38 @@ export default class PetPlugin extends Plugin {
 
 	// ── Page context ───────────────────────────────────────────
 
+	/**
+	 * The note the AI should talk about. On mobile the pet panel is a main-area
+	 * tab, so it can be the active leaf and `getActiveFile()` returns null;
+	 * on a cold start it can even be active before any markdown view was seen.
+	 */
+	private getContextFile(): TFile | null {
+		const active = this.app.workspace.getActiveFile();
+		if (active) return active;
+
+		if (this.lastMarkdownView?.file) return this.lastMarkdownView.file;
+
+		// Cold start with the pet tab restored as active: use an open note
+		// instead of falling back to the pet view's own title. Deferred views
+		// report `file === null`, so read the path from the leaf's view state.
+		const recent = this.app.workspace.getMostRecentLeaf();
+		if (recent?.view instanceof MarkdownView && recent.view.file) {
+			return recent.view.file;
+		}
+		for (const leaf of this.app.workspace.getLeavesOfType("markdown")) {
+			if (leaf.view instanceof MarkdownView && leaf.view.file) return leaf.view.file;
+			const path = (leaf.getViewState()?.state as { file?: string } | undefined)?.file;
+			if (path) {
+				const file = this.app.vault.getAbstractFileByPath(path);
+				if (file instanceof TFile) return file;
+			}
+		}
+		return null;
+	}
+
 	getCurrentPageLabel(): string {
-		const activeFile = this.app.workspace.getActiveFile();
-		if (activeFile) return activeFile.basename;
+		const file = this.getContextFile();
+		if (file) return file.basename;
 		return this.app.workspace.getMostRecentLeaf()?.view?.getDisplayText?.() ?? t("notices.currentPage");
 	}
 
@@ -492,7 +535,7 @@ export default class PetPlugin extends Plugin {
 			}
 		}
 
-		const activeFile = this.app.workspace.getActiveFile();
+		const activeFile = this.getContextFile();
 		if (!activeFile) return "";
 
 		try {
@@ -655,6 +698,13 @@ export default class PetPlugin extends Plugin {
 
 	private registerCommands() {
 		this.addCommand({
+			id: "toggle-pets",
+			name: t("ribbon.togglePetView"),
+			callback: () => {
+				void this.togglePets();
+			},
+		});
+		this.addCommand({
 			id: "add-pet-dropdown",
 			name: t("commands.addPet"),
 			callback: () => this.showAddPetCommand(),
@@ -749,15 +799,44 @@ export default class PetPlugin extends Plugin {
 
 	// ── View management ────────────────────────────────────────
 
+	/** Ribbon icon and the `toggle-pets` command share this. */
+	async togglePets(): Promise<void> {
+		if (this.instanceData.overlayMode) {
+			if (this.overlayView) {
+				this.overlayView.destroy();
+				this.overlayView = null;
+			} else {
+				this.overlayView = new OverlayPetView(this);
+				for (const pet of this.getPetList()) {
+					this.overlayView.addPet(pet);
+				}
+				this.overlayView.startRantLoop();
+			}
+			return;
+		}
+		const isOpen = this.app.workspace.getLeavesOfType(VIEW_TYPE_PET).length > 0;
+		if (isOpen) await this.closeView();
+		else await this.openView();
+	}
+
 	async openView() {
 		if (this.instanceData.overlayMode) return;
 		const { workspace } = this.app;
-		const leaves = workspace.getLeavesOfType(VIEW_TYPE_PET);
-		if (leaves.length > 0) {
-			await workspace.revealLeaf(leaves[0]);
-			return;
+		const existing = workspace.getLeavesOfType(VIEW_TYPE_PET)[0];
+		if (existing) {
+			// Desktop docks the pet panel in the left sidebar. A vault synced
+			// between devices can carry that layout to mobile, where a sidebar
+			// leaf is hidden — move it into the main area instead.
+			if (isMobileUi() && existing.getRoot() !== workspace.rootSplit) {
+				existing.detach();
+			} else {
+				await workspace.revealLeaf(existing);
+				return;
+			}
 		}
-		const leaf = workspace.getLeftLeaf(true);
+		const leaf = isMobileUi()
+			? workspace.getLeaf("tab")
+			: workspace.getLeftLeaf(true);
 		if (leaf) {
 			await leaf.setViewState({ type: VIEW_TYPE_PET, active: true });
 			await workspace.revealLeaf(leaf);
@@ -868,10 +947,27 @@ export default class PetPlugin extends Plugin {
 			this.removePetFromViews(visitor.id);
 			new Notice(t("notices.villagerLeft", { name: visitor.name }));
 		}
+
+		// A scheduled visitor may be the first pet a mobile user ever sees.
+		this.maybeShowMobileGestureTip();
 	}
 
 	getCurrentVisitors(): PetInstance[] {
 		return this.currentVisitors;
+	}
+
+	// ── Mobile onboarding ──────────────────────────────────────
+
+	/** Explain touch gestures once, as soon as there is a pet to touch. */
+	private maybeShowMobileGestureTip(): void {
+		if (!isMobileUi() || this.instanceData.mobileGestureTipSeen) return;
+		if (this.getPetList().length === 0) return;
+
+		this.instanceData.mobileGestureTipSeen = true;
+		void this.saveData(this.instanceData);
+		window.setTimeout(() => {
+			new Notice(t("notices.mobileGestureTip"), 10000);
+		}, 800);
 	}
 
 	// ── Pet CRUD ───────────────────────────────────────────────
@@ -903,6 +999,7 @@ export default class PetPlugin extends Plugin {
 
 		this.instanceData.pets.push({ id, type, name });
 		await this.saveData(this.instanceData);
+		this.maybeShowMobileGestureTip();
 
 		if (this.instanceData.overlayMode) {
 			this.overlayView?.addPet({ id, type, name });

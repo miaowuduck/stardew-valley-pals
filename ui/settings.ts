@@ -23,7 +23,8 @@ import { DeepSeekSetupModal } from "./onboarding";
 import { getStardewSpeciesDefinition } from "../pets/stardew-species";
 import { getSpeciesLabel } from "../pets/species-i18n";
 import { DEFAULT_BASE_URL } from "../core/constants";
-import { t } from "../core/i18n";
+import { t, tMobile } from "../core/i18n";
+import { isMobileUi } from "../core/platform";
 
 type SettingKey = Extract<keyof PetPluginData, string>;
 
@@ -145,7 +146,10 @@ export class PetSettingTab extends PluginSettingTab {
 					},
 					{
 						name: t("settings.overlayMode.name"),
-						desc: t("settings.overlayMode.desc"),
+						desc: tMobile(
+							"settings.overlayMode.desc",
+							"settings.overlayMode.descMobile",
+						),
 						control: {
 							type: "toggle",
 							key: "overlayMode",
@@ -177,6 +181,11 @@ export class PetSettingTab extends PluginSettingTab {
 							defaultValue: 1,
 							displayFormat: (v) => `${v.toFixed(1)}x`,
 						},
+					},
+					{
+						name: t("settings.touch.name"),
+						desc: t("settings.touch.desc"),
+						visible: () => isMobileUi(),
 					},
 				],
 			},
@@ -414,7 +423,10 @@ export class PetSettingTab extends PluginSettingTab {
 					},
 					{
 						name: t("settings.rants.focused.name"),
-						desc: t("settings.rants.focused.desc"),
+						desc: tMobile(
+							"settings.rants.focused.desc",
+							"settings.rants.focused.descMobile",
+						),
 						control: {
 							type: "toggle",
 							key: "pageRantOnlyWhenFocused",

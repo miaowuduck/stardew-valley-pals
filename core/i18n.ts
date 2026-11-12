@@ -1,4 +1,5 @@
 import { getLanguage } from "obsidian";
+import { isMobileUi } from "./platform";
 import type { UiLanguagePreference } from "./types";
 
 export type UiLanguage = "zh" | "en";
@@ -34,6 +35,8 @@ const en = {
 	"notices.aiTestSuccessNoReply": "✅ Connection successful!",
 	"notices.aiTestFailed": "❌ Connection failed: {message}",
 	"notices.deepseekReady": "DeepSeek AI is ready. Right-click a villager to say hello!",
+	"notices.deepseekReadyMobile": "DeepSeek AI is ready. Long-press a villager to say hello!",
+	"notices.mobileGestureTip": "Pet gestures: tap for a heart, drag to move, and long-press a villager to hear what they think of your note.",
 	"notices.languageRestartHint": "Interface language changed. Some menu and command names will update after you restart Obsidian.",
 	"notices.deepseekModelMigrated": "DeepSeek retired the old model name. Your model was switched to deepseek-flash.",
 	"notices.secretSaveFailed": "Could not save the API key to Obsidian's secret storage. Please try again.",
@@ -77,10 +80,13 @@ const en = {
 	"settings.language.zh": "简体中文",
 	"settings.overlayMode.name": "Overlay mode",
 	"settings.overlayMode.desc": "Pets roam freely across the entire Obsidian window on a transparent overlay. Disable to keep pets in a dockable side panel.",
+	"settings.overlayMode.descMobile": "Pets float above your notes while you write. Turn this off to give them a regular tab with a back button.",
 	"settings.petSize.name": "Pet size",
 	"settings.petSize.desc": "Scale all pets from half to triple size.",
 	"settings.petSpeed.name": "Movement speed",
 	"settings.petSpeed.desc": "How quickly pets wander around. Higher = faster.",
+	"settings.touch.name": "Touch controls",
+	"settings.touch.desc": "Tap a pet for a heart · Drag to move (drop on a villager to start a chat) · Long-press a villager to comment on this note.",
 
 	// ── Settings: pets ──────────────────────────────────────────
 	"settings.removeAllPets.name": "Remove all pets",
@@ -142,6 +148,7 @@ const en = {
 	"settings.rants.enabled.desc": "Villagers will occasionally speak up on their own, at the average rate set below.",
 	"settings.rants.focused.name": "Only rant when focused",
 	"settings.rants.focused.desc": "Suppress automatic rants while Obsidian is in the background. Right-click rants are always allowed.",
+	"settings.rants.focused.descMobile": "Suppress automatic rants while Obsidian is in the background. Long-press comments are always allowed.",
 	"settings.rants.perHour.name": "Messages per hour",
 	"settings.rants.perHour.desc": "Average number of automatic speech bubbles per hour. Timing varies naturally around this rate.",
 	"settings.rants.frequency.name": "Conversation frequency",
@@ -270,6 +277,7 @@ const en = {
 	"onboarding.done.title": "You're all set",
 	"onboarding.done.lede": "DeepSeek is connected.",
 	"onboarding.done.body": "Right-click a villager in Obsidian to say hello. You can change these settings any time under Settings → Stardew Valley Pals → AI configuration.",
+	"onboarding.done.bodyMobile": "Long-press a villager in Obsidian to say hello. You can change these settings any time under Settings → Stardew Valley Pals → AI configuration.",
 	"onboarding.done.addVillager": "Add a villager",
 	"onboarding.done.close": "Done",
 	"onboarding.nav.back": "Back",
@@ -307,6 +315,8 @@ const zh: Record<keyof typeof en, string> = {
 	"notices.aiTestSuccessNoReply": "✅ 连接成功！",
 	"notices.aiTestFailed": "❌ 连接失败：{message}",
 	"notices.deepseekReady": "DeepSeek AI 已就绪。右键点击一位村民打个招呼吧！",
+	"notices.deepseekReadyMobile": "DeepSeek AI 已就绪。长按一位村民打个招呼吧！",
+	"notices.mobileGestureTip": "宠物操作：轻点看爱心，拖动换位置，长按村民听听他们对当前笔记的看法。",
 	"notices.languageRestartHint": "界面语言已切换。部分菜单和命令名称会在重启 Obsidian 后更新。",
 	"notices.deepseekModelMigrated": "DeepSeek 已停用旧模型名，你的模型已切换为 deepseek-flash。",
 	"notices.secretSaveFailed": "无法把 API 密钥写入 Obsidian 密钥存储，请重试。",
@@ -350,10 +360,13 @@ const zh: Record<keyof typeof en, string> = {
 	"settings.language.zh": "简体中文",
 	"settings.overlayMode.name": "悬浮模式",
 	"settings.overlayMode.desc": "宠物会在整个 Obsidian 窗口的透明层上自由活动。关闭后宠物会待在可停靠的侧边面板里。",
+	"settings.overlayMode.descMobile": "宠物会浮在笔记上方陪你写作。关闭后，宠物会在一个带返回按钮的普通标签页中打开。",
 	"settings.petSize.name": "宠物大小",
 	"settings.petSize.desc": "把所有宠物缩放到 0.5 倍到 3 倍。",
 	"settings.petSpeed.name": "移动速度",
 	"settings.petSpeed.desc": "宠物闲逛的速度。数值越大越快。",
+	"settings.touch.name": "触屏操作",
+	"settings.touch.desc": "轻点宠物看爱心 · 拖动换位置（拖到村民身上会开始对话）· 长按村民评论当前笔记。",
 
 	// ── Settings: pets ──────────────────────────────────────────
 	"settings.removeAllPets.name": "移除全部宠物",
@@ -415,6 +428,7 @@ const zh: Record<keyof typeof en, string> = {
 	"settings.rants.enabled.desc": "村民会按下面设定的平均频率偶尔主动开口。",
 	"settings.rants.focused.name": "仅在聚焦时发言",
 	"settings.rants.focused.desc": "Obsidian 在后台时暂停自动发言。右键触发的发言不受影响。",
+	"settings.rants.focused.descMobile": "Obsidian 在后台时暂停自动发言。长按触发的发言不受影响。",
 	"settings.rants.perHour.name": "每小时消息数",
 	"settings.rants.perHour.desc": "每小时自动对话气泡的平均数量，实际间隔会自然浮动。",
 	"settings.rants.frequency.name": "对话频率",
@@ -543,6 +557,7 @@ const zh: Record<keyof typeof en, string> = {
 	"onboarding.done.title": "配置完成",
 	"onboarding.done.lede": "DeepSeek 已连接。",
 	"onboarding.done.body": "在 Obsidian 里右键点击一位村民，就能和 TA 打招呼。之后随时可以在「设置 → Stardew Valley Pals → AI 配置」里修改。",
+	"onboarding.done.bodyMobile": "在 Obsidian 里长按一位村民，就能和 TA 打招呼。之后随时可以在「设置 → Stardew Valley Pals → AI 配置」里修改。",
 	"onboarding.done.addVillager": "添加一位村民",
 	"onboarding.done.close": "完成",
 	"onboarding.nav.back": "上一步",
@@ -586,4 +601,13 @@ export function t(
 		}
 	}
 	return text;
+}
+
+/** Pick a mobile-specific string when running on Obsidian mobile. */
+export function tMobile(
+	desktopKey: TranslationKey,
+	mobileKey: TranslationKey,
+	vars?: Record<string, string | number>,
+): string {
+	return t(isMobileUi() ? mobileKey : desktopKey, vars);
 }

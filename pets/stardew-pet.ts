@@ -5,6 +5,7 @@ import { getStardewSpeciesSprite, isNpcSpeciesType, toAnimation } from "./starde
 import type { StardewSpeciesDefinition, StardewAnimation } from "./stardew-species";
 import type { RantResult } from "../core/types";
 import { t } from "../core/i18n";
+import { isMobileUi } from "../core/platform";
 import { classifyAiError } from "../ai/errors";
 import { getAiErrorCopy } from "../ui/ai-error-copy";
 
@@ -17,6 +18,17 @@ function wait(ms: number): Promise<void> {
  *  hover, speech bubbles and banter still interrupt and resume them. */
 const SUSTAINED_ACTION_MIN_MS = 3 * 60 * 1000;
 const SUSTAINED_ACTION_MAX_MS = 10 * 60 * 1000;
+
+// ── Pointer gestures ─────────────────────────────────────────────
+/** Mouse drags start almost immediately; fingers need a little slack. */
+const MOUSE_DRAG_THRESHOLD_PX = 3;
+const TOUCH_DRAG_THRESHOLD_PX = 10;
+/** Hold still this long on touch to ask a villager for a comment. */
+const LONG_PRESS_MS = 500;
+/** Finger movement that cancels a pending long-press. */
+const LONG_PRESS_CANCEL_PX = 8;
+/** How long the name tag stays up after a tap. */
+const NAME_TAG_VISIBLE_MS = 1500;
 
 export class StardewPet {
 	public petEl!: HTMLElement;
@@ -48,10 +60,24 @@ export class StardewPet {
 	private readonly rightClickTextProvider: (() => RantResult | Promise<RantResult>) | null;
 	private readonly speechEnabledProvider: ((isNPC: boolean) => boolean) | null;
 	private isDragging = false;
-	private dragThreshold = 3;
 	private readonly isNPC: boolean;
 	/** Fired after a real drag ends (not a click). Set by the owning view. */
 	public onDragEnd: (() => void) | null = null;
+
+	// ── Pointer gesture state (mouse and touch share one code path) ──
+	private activePointerId: number | null = null;
+	private pointerType: "mouse" | "touch" | "pen" | null = null;
+	/** Last pointer type seen, so a hybrid device's contextmenu stays mouse-only. */
+	private lastPointerType: "mouse" | "touch" | "pen" | null = null;
+	private pointerHasDragged = false;
+	private longPressFired = false;
+	private longPressTimer: ReturnType<typeof window.setTimeout> | null = null;
+	/** Blocks the synthetic contextmenu Android fires at the end of a long-press. */
+	private suppressContextMenuUntil = 0;
+	/** True while an AI comment request is in flight (keeps the pet still). */
+	private commentPending = false;
+	private nameTagTimer: ReturnType<typeof window.setTimeout> | null = null;
+	private dragStart = { x: 0, y: 0, petX: 0, petY: 0 };
 
 	constructor(
 		private container: Element,
@@ -84,7 +110,7 @@ export class StardewPet {
 		this.currentX = Math.random() * (maxX - minX) + minX;
 		this.currentY = Math.random() * (maxY - minY) + minY;
 		this.petEl = this.createPetElement(petId);
-		this.setupHoverListeners();
+		this.setupInteractionListeners();
 		void this.initializeSprite().then(() => {
 			void this.playAnimation("idle");
 			if (this.isNPC) {
@@ -251,30 +277,209 @@ export class StardewPet {
 		});
 	}
 
-	private setupHoverListeners() {
-		this.petEl.addEventListener("mouseenter", () => {
-			this.actionLoopPaused = true;
-			this.freezeAtCurrentPosition();
-			// Prefer the most settled pose the species has: a sleeping pet,
-			// a sitting/resting NPC, plain idle otherwise.
-			const hoverAnim = this.definition.animations.sleep
-				? "sleep"
-				: this.definition.animations.rest
-					? "rest"
-					: "idle";
-			void this.playAnimation(hoverAnim);
-		});
+	private setupInteractionListeners() {
+		// Hover only exists where a real pointer can hover. Attaching these on
+		// iOS also risks a synthetic mouseenter after a tap with no matching
+		// mouseleave, which would freeze the pet in its hover pose forever.
+		if (!isMobileUi()) {
+			this.petEl.addEventListener("mouseenter", () => this.pauseForHover());
+			this.petEl.addEventListener("mouseleave", () => {
+				if (!this.speechBubbleEl) this.actionLoopPaused = false;
+			});
+		}
 
-		this.petEl.addEventListener("mouseleave", () => {
-			if (!this.speechBubbleEl) this.actionLoopPaused = false;
-		});
+		this.petEl.addEventListener("pointerdown", (event) => this.handlePointerDown(event));
+		this.petEl.addEventListener("pointermove", (event) => this.handlePointerMove(event));
+		this.petEl.addEventListener("pointerup", (event) => this.handlePointerUp(event, false));
+		this.petEl.addEventListener("pointercancel", (event) => this.handlePointerUp(event, true));
+		this.petEl.addEventListener("lostpointercapture", (event) => this.handleLostCapture(event));
+		this.petEl.addEventListener("contextmenu", (event) => this.handleContextMenu(event));
+	}
 
-		this.petEl.addEventListener("mousedown", (event) => {
-			this.handleMouseDown(event);
-		});
+	/** Settle into the most restful pose the species has while hovered. */
+	private pauseForHover() {
+		this.actionLoopPaused = true;
+		this.freezeAtCurrentPosition();
+		const hoverAnim = this.definition.animations.sleep
+			? "sleep"
+			: this.definition.animations.rest
+				? "rest"
+				: "idle";
+		void this.playAnimation(hoverAnim);
+	}
 
-		this.petEl.addEventListener("contextmenu", (event) => {
-			event.preventDefault();
+	private handlePointerDown(event: PointerEvent) {
+		if (this.isDestroyed || this.activePointerId !== null || !event.isPrimary) return;
+
+		const touchLike = event.pointerType !== "mouse";
+
+		// Right/middle mouse buttons are handled by the contextmenu event.
+		if (!touchLike && event.button !== 0) {
+			this.lastPointerType = "mouse";
+			return;
+		}
+
+		this.lastPointerType = touchLike
+			? (event.pointerType as "touch" | "pen")
+			: "mouse";
+		this.pointerType = this.lastPointerType;
+		this.activePointerId = event.pointerId;
+		this.pointerHasDragged = false;
+		this.longPressFired = false;
+
+		// Touch only: suppress the compatibility mouse events that follow.
+		// Mouse clicks keep their default so Obsidian's own handlers (closing
+		// popovers/menus on mousedown) still see the interaction.
+		if (touchLike) event.preventDefault();
+		try {
+			this.petEl.setPointerCapture(event.pointerId);
+		} catch {
+			// The element can be detached mid-gesture; pointerup cleanup still runs.
+		}
+
+		if (touchLike) {
+			// Freeze under the finger so a long-press target cannot wander away
+			// during the hold. Movement beyond the threshold turns this into a drag.
+			this.pauseForHover();
+			this.showNameTag(false);
+		}
+
+		this.dragStart = {
+			x: event.clientX,
+			y: event.clientY,
+			petX: this.currentX,
+			petY: this.currentY,
+		};
+
+		if (touchLike) {
+			this.longPressTimer = window.setTimeout(() => {
+				this.longPressTimer = null;
+				if (this.isDestroyed || this.pointerHasDragged) return;
+				this.longPressFired = true;
+				this.suppressContextMenuUntil = Date.now() + 1500;
+				void this.requestComment(true);
+			}, LONG_PRESS_MS);
+		}
+	}
+
+	private handlePointerMove(event: PointerEvent) {
+		if (event.pointerId !== this.activePointerId || this.isDestroyed) return;
+		// Once the comment has been requested, keep the pet still until release.
+		if (this.longPressFired) return;
+
+		const dx = event.clientX - this.dragStart.x;
+		const dy = event.clientY - this.dragStart.y;
+		const distance = Math.hypot(dx, dy);
+
+		if (!this.pointerHasDragged && distance > LONG_PRESS_CANCEL_PX) {
+			this.clearLongPressTimer();
+		}
+
+		const threshold =
+			this.pointerType === "mouse" ? MOUSE_DRAG_THRESHOLD_PX : TOUCH_DRAG_THRESHOLD_PX;
+		if (!this.pointerHasDragged && distance > threshold) {
+			this.pointerHasDragged = true;
+			this.beginDrag();
+		}
+		if (!this.pointerHasDragged) return;
+
+		this.currentX = this.dragStart.petX + dx;
+		this.currentY = this.dragStart.petY + dy;
+		this.petEl.setCssProps({
+			"--left": `${this.currentX}px`,
+			"--top": `${this.currentY}px`,
+		});
+	}
+
+	private beginDrag() {
+		this.isDragging = true;
+		// Dismiss any active speech bubble — dragging takes priority.
+		this.clearSpeechBubble();
+		this.actionLoopPaused = true;
+		// Kill the CSS transition so the pet follows the finger without lag.
+		this.petEl.setCssStyles({ transition: "none" });
+		// Visual feedback: lift the pet off the ground.
+		this.petEl.addClass("pet-dragging");
+		if (this.pointerType !== "mouse") this.showNameTag(true);
+	}
+
+	private handlePointerUp(event: PointerEvent, canceled: boolean) {
+		if (event.pointerId !== this.activePointerId) return;
+
+		const touchLike = this.pointerType !== "mouse";
+		const wasDragging = this.pointerHasDragged;
+		const longPressed = this.longPressFired;
+
+		this.clearLongPressTimer();
+		// Clear first: releasing the capture can fire lostpointercapture, which
+		// would otherwise run this cleanup a second time.
+		this.activePointerId = null;
+		this.pointerHasDragged = false;
+		try {
+			this.petEl.releasePointerCapture(event.pointerId);
+		} catch {
+			// Already released (e.g. after pointercancel).
+		}
+
+		if (wasDragging) {
+			this.isDragging = false;
+			this.petEl.removeClass("pet-dragging");
+			this.petEl.setCssStyles({ transition: "" });
+			// Let the view react — e.g. dropping one villager onto another
+			// starts a conversation.
+			if (!canceled) this.onDragEnd?.();
+			// A fast flick can leave the pet outside the clipped container.
+			if (touchLike) void this.clampToContainer();
+		} else if (!canceled && !longPressed) {
+			this.showHeart();
+			this.performAction("gesture");
+		}
+
+		if (touchLike) this.hideNameTagSoon();
+		if (
+			touchLike &&
+			!this.speechBubbleEl &&
+			!this.commentPending &&
+			!this.isDragging
+		) {
+			this.actionLoopPaused = false;
+		}
+		this.pointerType = null;
+	}
+
+	private handleLostCapture(event: PointerEvent) {
+		if (event.pointerId !== this.activePointerId) return;
+		this.clearLongPressTimer();
+		this.activePointerId = null;
+		this.pointerHasDragged = false;
+		if (this.isDragging) {
+			this.isDragging = false;
+			this.petEl.removeClass("pet-dragging");
+			this.petEl.setCssStyles({ transition: "" });
+		}
+		if (this.pointerType !== "mouse") this.hideNameTagSoon();
+		if (!this.speechBubbleEl && !this.commentPending) this.actionLoopPaused = false;
+		this.pointerType = null;
+	}
+
+	private handleContextMenu(event: MouseEvent) {
+		event.preventDefault();
+		if (Date.now() < this.suppressContextMenuUntil) return;
+		// On mobile, touch comments come from the long-press timer only; let a
+		// real mouse (trackpad/external) keep desktop right-click behaviour.
+		if (isMobileUi() && this.lastPointerType !== "mouse") return;
+		void this.requestComment(false);
+	}
+
+	/**
+	 * The single "talk to me" path used by desktop right-click and mobile
+	 * long-press. Animals and disabled speech fall back to a heart.
+	 */
+	private async requestComment(fromTouch: boolean): Promise<void> {
+		if (this.isDestroyed || this.commentPending) return;
+		this.commentPending = true;
+
+		try {
 			if (this.speechEnabledProvider && !this.speechEnabledProvider(this.isNPC)) {
 				this.showHeart();
 				return;
@@ -285,83 +490,65 @@ export class StardewPet {
 				return;
 			}
 
-			void Promise.resolve(result)
-				.then(({ text, action }) => {
-					const finalText = text.trim();
-					if (finalText) {
-						this.showSpeechBubble(finalText);
-						// After the bubble (which switches to idle) so the action wins.
-						this.performAction(action ?? "gesture");
-						return;
-					}
-					this.showHeart();
-				})
-				.catch((e: unknown) => {
-					const copy = getAiErrorCopy(classifyAiError(e));
-					console.error("Right-click rant failed:", copy.short);
-					new Notice(t("notices.aiCallFailed", { error: copy.short }), 5000);
-					this.showHeart();
-				});
-		});
-	}
-
-	private handleMouseDown(event: MouseEvent) {
-		if (event.button !== 0) return;
-		event.preventDefault();
-
-		const doc = this.container.ownerDocument;
-		let hasDragged = false;
-		const startX = event.clientX;
-		const startY = event.clientY;
-		const startPetX = this.currentX;
-		const startPetY = this.currentY;
-
-		const onMouseMove = (ev: MouseEvent) => {
-			const dx = ev.clientX - startX;
-			const dy = ev.clientY - startY;
-
-			if (!hasDragged && (Math.abs(dx) > this.dragThreshold || Math.abs(dy) > this.dragThreshold)) {
-				hasDragged = true;
-				this.isDragging = true;
-				// Dismiss any active speech bubble — dragging takes priority.
-				this.clearSpeechBubble();
-				this.actionLoopPaused = true;
-				// Kill CSS transition so the pet follows the cursor without lag.
-				this.petEl.setCssStyles({ transition: "none" });
-				// Visual feedback: lift the pet off the ground.
-				this.petEl.addClass("pet-dragging");
-			}
-
-			if (hasDragged) {
-				this.currentX = startPetX + dx;
-				this.currentY = startPetY + dy;
-				this.petEl.setCssProps({
-					"--left": `${this.currentX}px`,
-					"--top": `${this.currentY}px`,
-				});
-			}
-		};
-
-		const onMouseUp = () => {
-			doc.removeEventListener("mousemove", onMouseMove);
-			doc.removeEventListener("mouseup", onMouseUp);
-
-			if (hasDragged) {
-				this.isDragging = false;
-				this.petEl.removeClass("pet-dragging");
-				this.petEl.setCssStyles({ transition: "" });
-				if (!this.speechBubbleEl) this.actionLoopPaused = false;
-				// Let the view react — e.g. dropping one villager onto
-				// another starts a conversation.
-				this.onDragEnd?.();
+			const { text, action } = await Promise.resolve(result);
+			const finalText = text.trim();
+			if (finalText) {
+				this.showSpeechBubble(finalText);
+				// After the bubble (which switches to idle) so the action wins.
+				this.performAction(action ?? "gesture");
 			} else {
 				this.showHeart();
-				this.performAction("gesture");
 			}
-		};
+		} catch (e: unknown) {
+			const copy = getAiErrorCopy(classifyAiError(e));
+			console.error("Villager comment failed:", copy.short);
+			new Notice(t("notices.aiCallFailed", { error: copy.short }), 5000);
+			this.showHeart();
+		} finally {
+			this.commentPending = false;
+			if (
+				fromTouch &&
+				this.activePointerId === null &&
+				!this.speechBubbleEl &&
+				!this.isDragging
+			) {
+				this.actionLoopPaused = false;
+			}
+		}
+	}
 
-		doc.addEventListener("mousemove", onMouseMove);
-		doc.addEventListener("mouseup", onMouseUp);
+	private clearLongPressTimer() {
+		if (this.longPressTimer !== null) {
+			window.clearTimeout(this.longPressTimer);
+			this.longPressTimer = null;
+		}
+	}
+
+	/** Show the name tag; `persist` keeps it up until `hideNameTagSoon`. */
+	private showNameTag(persist: boolean) {
+		this.clearNameTagTimer();
+		this.petEl.addClass("pet-show-name");
+		if (!persist) {
+			this.nameTagTimer = window.setTimeout(() => {
+				this.nameTagTimer = null;
+				this.petEl.removeClass("pet-show-name");
+			}, NAME_TAG_VISIBLE_MS);
+		}
+	}
+
+	private hideNameTagSoon(delay = 600) {
+		this.clearNameTagTimer();
+		this.nameTagTimer = window.setTimeout(() => {
+			this.nameTagTimer = null;
+			this.petEl.removeClass("pet-show-name");
+		}, delay);
+	}
+
+	private clearNameTagTimer() {
+		if (this.nameTagTimer !== null) {
+			window.clearTimeout(this.nameTagTimer);
+			this.nameTagTimer = null;
+		}
 	}
 
 	private showHeart() {
@@ -377,6 +564,8 @@ export class StardewPet {
 
 	public showSpeechBubble(text: string, duration = 4500) {
 		if (this.isDestroyed || !this.petEl) return;
+		this.clearNameTagTimer();
+		this.petEl.removeClass("pet-show-name");
 		this.clearSpeechBubble();
 
 		// Stop the behaviour loop — no new steps will be scheduled.
@@ -837,7 +1026,13 @@ export class StardewPet {
 
 	/** True when the pet shouldn't be picked for a banter or rant. */
 	public isBusy(): boolean {
-		return this.isDestroyed || this.banterPaused || this.speechBubbleEl !== null || this.isDragging;
+		return (
+			this.isDestroyed ||
+			this.banterPaused ||
+			this.speechBubbleEl !== null ||
+			this.isDragging ||
+			this.commentPending
+		);
 	}
 
 	/** Hold position for banter; independent from hover/bubble pausing. */
@@ -906,9 +1101,29 @@ export class StardewPet {
 		sprite.classList.add("pet-sprite-hop");
 	}
 
+	/** Drop any pending gesture timers/capture before the element goes away. */
+	private cleanupGestureState() {
+		this.clearLongPressTimer();
+		this.clearNameTagTimer();
+		if (this.activePointerId !== null) {
+			try {
+				this.petEl.releasePointerCapture(this.activePointerId);
+			} catch {
+				// The pointer may already be gone.
+			}
+			this.activePointerId = null;
+		}
+		this.pointerHasDragged = false;
+		this.longPressFired = false;
+		this.pointerType = null;
+		this.commentPending = false;
+		this.isDragging = false;
+	}
+
 	public async destroy() {
 		if (this.isDestroyed) return;
 		this.isDestroyed = true;
+		this.cleanupGestureState();
 		this.clearSpeechBubble();
 		if (this.animationTimer !== null) {
 			window.clearInterval(this.animationTimer);
@@ -922,6 +1137,7 @@ export class StardewPet {
 	public destroyImmediate() {
 		if (this.isDestroyed) return;
 		this.isDestroyed = true;
+		this.cleanupGestureState();
 		this.clearSpeechBubble();
 		if (this.animationTimer !== null) {
 			window.clearInterval(this.animationTimer);
