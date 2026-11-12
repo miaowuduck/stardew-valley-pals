@@ -102,6 +102,25 @@
 
 默认提供方是 DeepSeek，endpoint 为 `https://api.deepseek.com/v1`，模型为 `deepseek-flash`。OpenAI、Google Gemini 和其他 OpenAI 兼容服务仍可在 **AI 配置** 的高级字段中使用。**AI 台词使用中文** 与界面语言是两个独立设置。
 
+### 本地 / 自建 API（Ollama、LM Studio、llama.cpp 等）
+
+插件使用 OpenAI chat-completions 协议，只要本地服务提供 OpenAI 兼容接口就能用：
+
+| 服务 | 填写的 endpoint | 模型 |
+|---|---|---|
+| Ollama | `http://127.0.0.1:11434/v1` | `ollama list` 里的名称，例如 `qwen2.5:7b` |
+| LM Studio | `http://127.0.0.1:1234/v1` | LM Studio 服务页显示的模型名 |
+| llama.cpp（`llama-server`） | `http://127.0.0.1:8080/v1` | 它报告的模型名/别名 |
+| vLLM | `http://127.0.0.1:8000/v1` | 启动时指定的 served model |
+
+在 **设置 → AI 配置** 里：
+
+- **API endpoint** —— 填以 `/v1` 结尾的 **base URL**，不要填完整的 `.../chat/completions`。只填 `http://127.0.0.1:11434` 也会自动补成 `/v1`。
+- **模型** —— 填服务器要求的精确 ID。这是最常见的错误，请从服务的模型列表里复制。
+- **API 密钥 secret** —— 本地服务通常不验证密钥，可以留空。如果你的代理需要密钥，照常创建一个 secret 即可。
+
+点击 **测试连接**。失败时会弹出对话框，显示实际请求的 URL、模型、HTTP 状态码和服务端返回内容；同样的信息也会以 `[Stardew Valley Pals]` 前缀写入开发者控制台（`Ctrl+Shift+I` → Console），提交 issue 时请附上这些内容。
+
 ## ⚙️ 设置速览
 
 | 设置 | 作用 |

@@ -19,7 +19,12 @@ import {
 } from "./core/constants";
 import type { BanterLine } from "./core/constants";
 import { getUiLanguage, resolveUiLanguage, setUiLanguage, t } from "./core/i18n";
-import { classifyAiError } from "./ai/errors";
+import { classifyAiError, describeAiError } from "./ai/errors";
+import {
+	isDeepSeekEndpoint,
+	isLocalEndpoint,
+	normalizeBaseUrl,
+} from "./ai/provider";
 import { getAiErrorCopy } from "./ui/ai-error-copy";
 import { DeepSeekSetupModal } from "./ui/onboarding";
 import { computeVisitors } from "./core/npc-schedule";
@@ -174,6 +179,13 @@ export default class PetPlugin extends Plugin {
 			this.instanceData.openAiBaseUrl = defaults.openAiBaseUrl ?? DEEPSEEK_BASE_URL;
 			needsSave = true;
 		}
+		// Repair common endpoint typos (`http:/`, missing /v1, full
+		// /chat/completions URL) so local servers work without guesswork.
+		const normalizedBaseUrl = normalizeBaseUrl(this.instanceData.openAiBaseUrl);
+		if (normalizedBaseUrl && normalizedBaseUrl !== this.instanceData.openAiBaseUrl) {
+			this.instanceData.openAiBaseUrl = normalizedBaseUrl;
+			needsSave = true;
+		}
 		if (!this.instanceData.selectedModel?.trim()) {
 			this.instanceData.selectedModel = defaults.selectedModel ?? DEEPSEEK_DEFAULT_MODEL;
 			needsSave = true;
@@ -260,30 +272,43 @@ export default class PetPlugin extends Plugin {
 
 	// ── AI configuration ───────────────────────────────────────
 
-	/** The model every AI call should use. */
+	/**
+	 * The model every AI call should use. Never fall back to a DeepSeek model
+	 * when the configured endpoint is something else — sending `deepseek-flash`
+	 * to a local server just produces a confusing "model not found".
+	 */
 	getSelectedModel(): string {
-		return this.instanceData.selectedModel?.trim() || DEEPSEEK_DEFAULT_MODEL;
+		const selected = this.instanceData.selectedModel?.trim();
+		if (selected && selected !== "none") return selected;
+		return isDeepSeekEndpoint(this.instanceData.openAiBaseUrl)
+			? DEEPSEEK_DEFAULT_MODEL
+			: "";
 	}
 
 	/** Rebuild the live OpenAI client after any key/endpoint/model change. */
 	refreshChatModel(opts: { quiet?: boolean } = {}): boolean {
 		const model = this.getSelectedModel();
-		if (!model || model === "none") {
+		const baseUrl = normalizeBaseUrl(
+			this.instanceData.openAiBaseUrl || DEFAULT_BASE_URL,
+		);
+
+		if (!model) {
 			this.chatmodel = null;
+			if (!opts.quiet) new Notice(t("notices.enterModelFirst"));
 			return false;
 		}
+
 		const keyName = this.instanceData.openAiApiKey?.trim();
 		const key = keyName ? this.app.secretStorage.getSecret(keyName) : null;
-		if (!key) {
+		// Ollama and friends usually don't authenticate. For a local endpoint,
+		// an empty key is a valid configuration; the SDK gets a placeholder.
+		if (!key && !isLocalEndpoint(baseUrl)) {
 			this.chatmodel = null;
 			if (!opts.quiet) new Notice(t("notices.selectSecretFirst"));
 			return false;
 		}
 		try {
-			this.chatmodel = initModel(
-				key,
-				this.instanceData.openAiBaseUrl?.trim() || DEFAULT_BASE_URL,
-			);
+			this.chatmodel = initModel(key, baseUrl);
 			return true;
 		} catch (e) {
 			console.warn("Failed to initialize chat model:", e);
@@ -305,18 +330,19 @@ export default class PetPlugin extends Plugin {
 		return this.refreshChatModel({ quiet: opts.quiet ?? true });
 	}
 
-	/** True when a secret resolves and a model is selected. */
+	/** True when the endpoint, key (if required), and model are usable. */
 	hasUsableAiConfig(): boolean {
+		const baseUrl = normalizeBaseUrl(this.instanceData.openAiBaseUrl);
 		const name = this.instanceData.openAiApiKey?.trim();
-		if (!name) return false;
-		if (!this.app.secretStorage.getSecret(name)) return false;
+		const key = name ? this.app.secretStorage.getSecret(name) : null;
+		if (!key && !isLocalEndpoint(baseUrl)) return false;
 		const model = this.getSelectedModel();
 		return !!model && model !== "none";
 	}
 
 	isDeepSeekConfigured(): boolean {
 		return this.hasUsableAiConfig() &&
-			/api\.deepseek\.com/i.test(this.instanceData.openAiBaseUrl ?? "");
+			isDeepSeekEndpoint(this.instanceData.openAiBaseUrl);
 	}
 
 	async markOnboardingSeen(): Promise<void> {
@@ -532,8 +558,14 @@ export default class PetPlugin extends Plugin {
 				this.instanceData.useChinesePrompt ?? false,
 			);
 		} catch (e: unknown) {
-			const copy = getAiErrorCopy(classifyAiError(e));
-			console.error("Page rant generation failed:", e);
+			const baseUrl = normalizeBaseUrl(this.instanceData.openAiBaseUrl);
+			const copy = getAiErrorCopy(classifyAiError(e), { baseUrl });
+			console.error(
+				`[Stardew Valley Pals] Page rant generation failed\n${describeAiError(e, {
+					endpoint: baseUrl,
+					model: this.getSelectedModel(),
+				})}`,
+			);
 			new Notice(t("notices.aiCallFailed", { error: copy.short }), 5000);
 		}
 
@@ -946,7 +978,9 @@ export default class PetPlugin extends Plugin {
 	}
 
 	updateOpenAiBaseUrl(v: string) {
-		void this.applyAiConfig({ openAiBaseUrl: v.trim() || DEFAULT_BASE_URL });
+		void this.applyAiConfig({
+			openAiBaseUrl: normalizeBaseUrl(v) || DEFAULT_BASE_URL,
+		});
 	}
 	updateChinesePrompt(v: boolean) { this.updateSetting("useChinesePrompt", v); }
 	updatePageRantEnabled(v: boolean) { this.updateSetting("pageRantEnabled", v); }
@@ -964,7 +998,18 @@ export default class PetPlugin extends Plugin {
 	}
 
 	updateChosenModel(selectedModel: string): void {
-		const model = selectedModel.trim() || DEEPSEEK_DEFAULT_MODEL;
+		const trimmed = selectedModel.trim();
+		const model = trimmed ||
+			(isDeepSeekEndpoint(this.instanceData.openAiBaseUrl)
+				? DEEPSEEK_DEFAULT_MODEL
+				: "");
+		if (!model) {
+			this.instanceData.selectedModel = "";
+			void this.saveData(this.instanceData);
+			this.chatmodel = null;
+			new Notice(t("notices.enterModelFirst"));
+			return;
+		}
 		void this.applyAiConfig({ selectedModel: model }, { quiet: true }).then((ok) => {
 			new Notice(ok
 				? t("notices.modelSet", { model })

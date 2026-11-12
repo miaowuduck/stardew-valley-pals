@@ -12,7 +12,12 @@ import type {
 import type PetPlugin from "../main";
 import type { PetPluginData } from "../core/types";
 import { probeChatModel } from "../ai/chat";
-import { classifyAiError } from "../ai/errors";
+import { classifyAiError, describeAiError } from "../ai/errors";
+import {
+	isLocalEndpoint,
+	normalizeBaseUrl,
+} from "../ai/provider";
+import { AiErrorModal } from "./ai-error-modal";
 import { getAiErrorCopy } from "./ai-error-copy";
 import { DeepSeekSetupModal } from "./onboarding";
 import { getStardewSpeciesDefinition } from "../pets/stardew-species";
@@ -73,7 +78,7 @@ export class PetSettingTab extends PluginSettingTab {
 				break;
 			case "openAiBaseUrl":
 				plugin.updateOpenAiBaseUrl(
-					(value as string).trim() || DEFAULT_BASE_URL,
+					normalizeBaseUrl(value as string) || DEFAULT_BASE_URL,
 				);
 				break;
 			case "selectedModel":
@@ -614,15 +619,17 @@ export class PetSettingTab extends PluginSettingTab {
 		const key = keyName
 			? this.app.secretStorage.getSecret(keyName)
 			: null;
-		const baseUrl = this.plugin.instanceData.openAiBaseUrl?.trim();
-		const model = this.plugin.instanceData.selectedModel?.trim();
+		// Local OpenAI-compatible servers commonly accept requests without a
+		// key. Don't make the user invent one just to run the test.
+		const baseUrl = normalizeBaseUrl(this.plugin.instanceData.openAiBaseUrl);
+		const model = this.plugin.getSelectedModel();
 
-		if (!key) {
-			new Notice(t("settings.testConnection.noKey"), 5000);
-			return;
-		}
 		if (!baseUrl) {
 			new Notice(t("settings.testConnection.noEndpoint"), 5000);
+			return;
+		}
+		if (!key && !isLocalEndpoint(baseUrl)) {
+			new Notice(t("settings.testConnection.noKey"), 5000);
 			return;
 		}
 		if (!model) {
@@ -644,14 +651,21 @@ export class PetSettingTab extends PluginSettingTab {
 				);
 			} else {
 				const info = classifyAiError(result.error);
-				const copy = getAiErrorCopy(info);
-				console.error("API test failed:", info);
+				const copy = getAiErrorCopy(info, { baseUrl });
+				const details = describeAiError(result.error, {
+					endpoint: baseUrl,
+					model,
+				});
+				console.error(
+					`[Stardew Valley Pals] Connection test failed\n${details}`,
+				);
 				new Notice(
 					t("notices.aiTestFailed", {
 						message: `${copy.title} — ${copy.body}`,
 					}),
 					10000,
 				);
+				new AiErrorModal(this.app, copy.title, copy.body, details).open();
 			}
 		} finally {
 			btn.setButtonText(t("settings.testConnection.button"));

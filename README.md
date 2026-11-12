@@ -102,6 +102,25 @@ The plugin ships with a guided **DeepSeek** setup, so you don't need to know wha
 
 The default provider is DeepSeek with `https://api.deepseek.com/v1` and the model `deepseek-flash`. OpenAI, Google Gemini, and other OpenAI-compatible providers still work through the advanced fields under **AI configuration**. **AI dialogue in Chinese** is separate from the interface language.
 
+### Local / self-hosted APIs (Ollama, LM Studio, llama.cpp…)
+
+The plugin speaks the OpenAI chat-completions protocol, so any local server that exposes an OpenAI-compatible endpoint works:
+
+| Server | Endpoint to enter | Model |
+|---|---|---|
+| Ollama | `http://127.0.0.1:11434/v1` | the name from `ollama list`, e.g. `qwen2.5:7b` |
+| LM Studio | `http://127.0.0.1:1234/v1` | the model shown in the LM Studio server tab |
+| llama.cpp (`llama-server`) | `http://127.0.0.1:8080/v1` | the filename/model alias it reports |
+| vLLM | `http://127.0.0.1:8000/v1` | the served model name |
+
+Under **Settings → AI configuration**:
+
+- **API endpoint** — the *base* URL ending in `/v1`, **not** the full `.../chat/completions` address. A bare `http://127.0.0.1:11434` is normalized to `/v1` automatically.
+- **Model** — the exact ID the server expects. This is the most common mistake; copy it from the server's model list.
+- **API key secret** — local servers usually don't authenticate, so you can leave it empty. If your proxy requires one, create a secret as usual.
+
+Click **Test connection**. If it fails, a dialog shows the effective URL, model, HTTP status, and the server's response. The same details are written to the developer console (`Ctrl+Shift+I` → Console, prefixed with `[Stardew Valley Pals]`), which is what to attach to a bug report.
+
 ## ⚙️ Settings at a glance
 
 | Setting | What it does |

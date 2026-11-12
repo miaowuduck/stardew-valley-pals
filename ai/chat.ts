@@ -1,6 +1,9 @@
 import OpenAI from "openai";
 import type { NpcAction, RantResult, StardewPersona } from "../core/types";
 import type { BanterLine } from "../core/constants";
+import { describeAiError } from "./errors";
+import { isLocalEndpoint, normalizeBaseUrl } from "./provider";
+import { obsidianFetch } from "./request";
 
 /** Whitelist-check an action field coming from the model. */
 function toNpcAction(raw: unknown): NpcAction | undefined {
@@ -193,7 +196,12 @@ export async function generatePageRantText(
 		});
 		return parseRantResponse(response.choices[0].message.content || "");
 	} catch (e: unknown) {
-		console.error("Page rant generation failed:", e);
+		console.error(
+			`[Stardew Valley Pals] Page rant generation failed\n${describeAiError(e, {
+				endpoint: model.baseURL,
+				model: selectedModel,
+			})}`,
+		);
 		throw e;
 	}
 }
@@ -375,7 +383,12 @@ export async function generateDialogue(
 		});
 		return parseDialogue(response.choices[0].message.content || "", nameA, nameB);
 	} catch (e: unknown) {
-		console.error("Banter dialogue generation failed:", e);
+		console.error(
+			`[Stardew Valley Pals] Banter dialogue generation failed\n${describeAiError(e, {
+				endpoint: model.baseURL,
+				model: selectedModel,
+			})}`,
+		);
 		return [];
 	}
 }
@@ -424,7 +437,12 @@ If there's a new fact worth remembering, output it as a single short sentence (m
 		if (!text || /^none$/i.test(text)) return null;
 		return text.length > 80 ? `${text.slice(0, 80)}…` : text;
 	} catch (e: unknown) {
-		console.error("Memory extraction failed:", e);
+		console.error(
+			`[Stardew Valley Pals] Memory extraction failed\n${describeAiError(e, {
+				endpoint: model.baseURL,
+				model: selectedModel,
+			})}`,
+		);
 		return null;
 	}
 }
@@ -432,21 +450,29 @@ If there's a new fact worth remembering, output it as a single short sentence (m
 // ── Client init ────────────────────────────────────────────────
 
 export function initModel(
-	openAiKey: string,
+	openAiKey: string | null | undefined,
 	openAiBaseUrl: string,
 	options?: { timeout?: number; maxRetries?: number },
 ) {
+	const baseURL = normalizeBaseUrl(openAiBaseUrl);
+	const key = (openAiKey ?? "").trim() || (isLocalEndpoint(baseURL) ? "local" : "");
 	return new OpenAI({
-		apiKey: openAiKey,
-		baseURL: openAiBaseUrl,
+		apiKey: key,
+		baseURL,
 		dangerouslyAllowBrowser: true,
+		// Obsidian's renderer fetch is CORS-bound. Local OpenAI-compatible
+		// servers rarely send CORS headers, so go through requestUrl instead.
+		fetch: obsidianFetch,
+		// A hung local server should not block dialogue for ten minutes.
+		timeout: 60_000,
+		maxRetries: 1,
 		...options,
 	});
 }
 
 function isDeepSeekClient(client: OpenAI): boolean {
 	try {
-		return /api\.deepseek\.com/i.test(client.baseURL ?? "");
+		return /^https?:\/\/api\.deepseek\.com(\/|$)/i.test(client.baseURL ?? "");
 	} catch {
 		return false;
 	}
@@ -475,9 +501,12 @@ export interface ChatProbeResult {
 	error?: unknown;
 }
 
-/** Send one tiny message to verify key, endpoint, and model. */
+/**
+ * Send one tiny message to verify key, endpoint, and model.
+ * `key` may be null for local endpoints that don't check credentials.
+ */
 export async function probeChatModel(
-	key: string,
+	key: string | null,
 	baseUrl: string,
 	model: string,
 	timeoutMs = 20000,
