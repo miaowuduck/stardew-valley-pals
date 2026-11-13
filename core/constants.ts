@@ -43,65 +43,6 @@ export const DEFAULT_DATA: Partial<PetPluginData> = {
 	mobileGestureTipSeen: false,
 };
 
-// ── New-note welcome messages ──────────────────────────────────
-
-export const NEW_NOTE_MESSAGES_EN = [
-	"A fresh note has appeared!",
-	"Perfect time to write something down.",
-	"New ideas are ready to grow.",
-	"Nothing can stop this note now!",
-	"Pause and jot it down.",
-	"Fresh inspiration, right on time.",
-	"This one feels worth keeping.",
-	"Another note, another good start.",
-	"You're moving fast today.",
-	"Nice work, keep the momentum going.",
-	"A little burst of inspiration!",
-	"*quietly pleased*",
-	"Keep it going.",
-	"Woof! New note detected! 🐕",
-	"Bark bark! Time to write! 🐶",
-	"Paws-itively productive!",
-	"Fetching new ideas! 🎾",
-	"Note-worthy work!",
-	"Ruff draft started!",
-	"Pup-tastic productivity!",
-	"Tail-wagging good writing!",
-	"Who's a good writer? You are!",
-	"Bone-us note unlocked! 🦴",
-	"Arf arf! 🐕",
-	"Woof woof! 🐶",
-	"*excited bork*",
-	"*tail wagging intensifies*",
-	"Hop into a new note! 🐰",
-	"Lettuce write! 🥬",
-	"Hare-brained ideas welcome!",
-	"Note-hopping along nicely!",
-	"Carrot-ch all your thoughts! 🥕",
-	"Hop-timistic about this note!",
-	"A bright little note just landed.",
-	"Write on, hooman! ✍️",
-];
-
-export const NEW_NOTE_MESSAGES_ZH = [
-	"一篇新笔记出现了！",
-	"正好，现在写点什么吧。",
-	"新想法正在发芽。",
-	"这个笔记看起来值得留下来。",
-	"又一篇，又一个好开始。",
-	"灵感来得正是时候。",
-	"先记下来再说。",
-	"写得不错，保持这个节奏。",
-	"啪嗒啪嗒，新的文字在长出来。",
-	"汪！检测到新笔记！🐕",
-	"新一轮灵感，已送达。",
-	"慢慢写，不着急。",
-];
-
-export function getNewNoteMessages(useChinese: boolean): string[] {
-	return useChinese ? NEW_NOTE_MESSAGES_ZH : NEW_NOTE_MESSAGES_EN;
-}
-
 // ── Fallback rant templates (NPCs only — animals don't talk) ───
 
 const NPC_TIMER_TEMPLATES_CN = [

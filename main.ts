@@ -15,7 +15,6 @@ import {
 	ONBOARDING_VERSION,
 	getFallbackBanterDialogue,
 	getFallbackRantText,
-	getNewNoteMessages,
 } from "./core/constants";
 import type { BanterLine } from "./core/constants";
 import { getUiLanguage, resolveUiLanguage, setUiLanguage, t } from "./core/i18n";
@@ -71,7 +70,6 @@ export default class PetPlugin extends Plugin {
 		this.registerView(VIEW_TYPE_PET, (leaf) => new PetView(leaf, this));
 		this.registerActivityTracking();
 		this.registerCommands();
-		this.registerNewNoteNotices();
 		this.addSettingTab(new PetSettingTab(this.app, this));
 
 		// Keep villager visits in sync with the clock (no-op when schedule mode is off)
@@ -747,18 +745,6 @@ export default class PetPlugin extends Plugin {
 			callback: () => {
 				new DeepSeekSetupModal(this.app, this).open();
 			},
-		});
-	}
-
-	private registerNewNoteNotices() {
-		this.app.workspace.onLayoutReady(() => {
-			this.registerEvent(
-				this.app.vault.on("create", () => {
-					const messages = getNewNoteMessages(getUiLanguage() === "zh");
-					const msg = messages[Math.floor(Math.random() * messages.length)];
-					new Notice(msg);
-				}),
-			);
 		});
 	}
 
