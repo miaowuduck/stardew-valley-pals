@@ -122,7 +122,6 @@ export class PetSettingTab extends PluginSettingTab {
 
 	getSettingDefinitions(): SettingDefinitionItem<SettingKey>[] {
 		const data = this.plugin.instanceData;
-		const memories = this.memoryList();
 
 		return [
 			// ── Display ─────────────────────────────────────────
@@ -378,33 +377,32 @@ export class PetSettingTab extends PluginSettingTab {
 							defaultValue: true,
 						},
 					},
-				],
-			},
-			...(memories ? [memories] : []),
-			{
-				name: t("settings.clearMemories.name"),
-				desc: t("settings.clearMemories.desc"),
-				visible: () => this.hasMemories(),
-				render: (setting) => {
-					setting.addButton((btn) => {
-						btn.setButtonText(t("settings.clearMemories.button"))
-							.setDestructive()
-							.onClick(() => {
-								this.confirm(
-									t("confirm.clearMemories.title"),
-									t("confirm.clearMemories.body"),
-									t("confirm.clearMemories.button"),
-									async () => {
-										await this.plugin.clearNpcMemories();
-										this.update();
-										new Notice(
-											t("notices.allMemoriesCleared"),
+					{
+						name: t("settings.clearMemories.name"),
+						desc: t("settings.clearMemories.desc"),
+						visible: () => this.hasMemories(),
+						render: (setting) => {
+							setting.addButton((btn) => {
+								btn.setButtonText(t("settings.clearMemories.button"))
+									.setDestructive()
+									.onClick(() => {
+										this.confirm(
+											t("confirm.clearMemories.title"),
+											t("confirm.clearMemories.body"),
+											t("confirm.clearMemories.button"),
+											async () => {
+												await this.plugin.clearNpcMemories();
+												this.update();
+												new Notice(
+													t("notices.allMemoriesCleared"),
+												);
+											},
 										);
-									},
-								);
+									});
 							});
-					});
-				},
+						},
+					},
+				],
 			},
 
 			// ── Automatic rants ───────────────────────────────
@@ -543,45 +541,10 @@ export class PetSettingTab extends PluginSettingTab {
 			items: pets.map((pet) => {
 				const typeLabel = getStardewSpeciesDefinition(pet.type)?.label ?? pet.type;
 				return {
-					name: pet.name,
+					name: getSpeciesLabel(pet.type, pet.name),
 					desc: t("settings.petType", {
 						type: getSpeciesLabel(pet.type, typeLabel),
 					}),
-					searchable: false,
-				};
-			}),
-		};
-	}
-
-	/** Per-villager memory rows, or null when nobody remembers anything yet. */
-	private memoryList(): SettingDefinitionList<SettingKey> | null {
-		const npcMemories = this.plugin.instanceData.npcMemories ?? {};
-		const entries = Object.keys(npcMemories)
-			.map((type) => ({ type, memories: npcMemories[type] }))
-			.filter((entry) => entry.memories.length > 0);
-
-		if (entries.length === 0) return null;
-
-		return {
-			type: "list",
-			onDelete: (index) => {
-				const entry = entries[index];
-				if (!entry) return;
-				void this.plugin.clearNpcMemories(entry.type).then(() => this.update());
-			},
-			items: entries.map(({ type, memories }) => {
-				const typeLabel = getStardewSpeciesDefinition(type)?.label ?? type;
-				return {
-					name: getSpeciesLabel(type, typeLabel),
-					desc: t(
-						memories.length === 1
-							? "settings.memory.count.one"
-							: "settings.memory.count.other",
-						{
-							count: memories.length,
-							memories: memories.join(" · "),
-						},
-					),
 					searchable: false,
 				};
 			}),
@@ -600,7 +563,7 @@ export class PetSettingTab extends PluginSettingTab {
 		if (visitors.length === 0) {
 			return t("settings.currentlyInTown.none");
 		}
-		return visitors.map((v) => v.name).join(", ");
+		return visitors.map((v) => getSpeciesLabel(v.type, v.name)).join(", ");
 	}
 
 	// ── Imperative helpers ─────────────────────────────────────

@@ -143,7 +143,7 @@ Click **Test connection**. If it fails, a dialog shows the effective URL, model,
 | **My pets** | See everyone you've adopted and remove any of them |
 | **Scheduled visits / Max visitors** | Let villagers arrive on their daily routines, up to six at a time |
 | **NPC speech / Villager conversations** | Turn AI dialogue and villager-to-villager chats on or off |
-| **Core memories** | Review what each villager remembers, or clear it all |
+| **Core memories** | Let villagers remember durable facts about you, or clear everything they've stored |
 | **Automatic rants** | Messages per hour, conversation frequency, and whether to stay quiet in the background |
 | **AI configuration** | DeepSeek setup wizard, plus advanced secret, endpoint, model, dialogue language, and connection test |
 

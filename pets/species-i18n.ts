@@ -1,5 +1,48 @@
 import { getUiLanguage } from "../core/i18n";
-import { isNpcSpeciesType } from "../core/types";
+import { NPC_TYPE_PREFIX, isNpcSpeciesType } from "../core/types";
+
+const NPC_ZH: Record<string, string> = {
+	Abigail: "阿比盖尔",
+	Alex: "亚历克斯",
+	Caroline: "卡洛琳",
+	Clint: "克林特",
+	Demetrius: "德米特里厄斯",
+	Dwarf: "矮人",
+	Elliott: "艾利欧特",
+	Emily: "艾米丽",
+	Evelyn: "艾芙琳",
+	George: "乔治",
+	Gus: "格斯",
+	Haley: "海莉",
+	Harvey: "哈维",
+	Jas: "贾斯",
+	Jodi: "乔迪",
+	Kent: "肯特",
+	Krobus: "科罗布斯",
+	Leah: "莉亚",
+	Lewis: "刘易斯",
+	Linus: "莱纳斯",
+	Marcello: "马塞洛",
+	Marnie: "玛妮",
+	Maru: "玛鲁",
+	Morris: "莫里斯",
+	Pam: "帕姆",
+	Penny: "潘妮",
+	Pierre: "皮埃尔",
+	Robin: "罗宾",
+	Sam: "山姆",
+	Sandy: "桑迪",
+	Sebastian: "塞巴斯蒂安",
+	Shane: "谢恩",
+	Shane_JojaMart: "谢恩（JojaMart）",
+	Toddler: "小孩",
+	Toddler_dark: "小孩（深肤色）",
+	Toddler_girl: "小女孩",
+	Toddler_girl_dark: "小女孩（深肤色）",
+	Vincent: "文森特",
+	Willy: "威利",
+	Wizard: "法师",
+};
 
 const PET_BASE_ZH: Record<string, string> = {
 	Cat: "猫",
@@ -37,11 +80,16 @@ const VARIANT_ZH: Record<string, string> = {
 };
 
 /**
- * Localize a pet label at render time. NPC names are proper nouns and stay
- * as-is; their `label` is also used in AI prompts, which remain English.
+ * Localize a species label at render time. NPC `label`s stay English in the
+ * data (AI prompts use them), so only the display name is translated here.
  */
 export function getSpeciesLabel(type: string, fallbackLabel: string): string {
-	if (isNpcSpeciesType(type) || getUiLanguage() !== "zh") return fallbackLabel;
+	if (getUiLanguage() !== "zh") return fallbackLabel;
+
+	if (isNpcSpeciesType(type)) {
+		const name = type.slice(NPC_TYPE_PREFIX.length);
+		return NPC_ZH[name] ?? fallbackLabel;
+	}
 
 	const parts = fallbackLabel.split(" ");
 	const base = PET_BASE_ZH[parts[0]];

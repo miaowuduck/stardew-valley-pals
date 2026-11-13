@@ -56,7 +56,7 @@ export class StardewPet {
 	private directedWalking = false;
 	private readonly spritesheetUrl: string;
 	private readonly definition: StardewSpeciesDefinition;
-	private readonly petName: string;
+	private petName: string;
 	private readonly rightClickTextProvider: (() => RantResult | Promise<RantResult>) | null;
 	private readonly speechEnabledProvider: ((isNPC: boolean) => boolean) | null;
 	private isDragging = false;
@@ -146,6 +146,12 @@ export class StardewPet {
 	/** Species art scale times the user's pet-size multiplier. */
 	private get pixelScale(): number {
 		return this.definition.scale * this.scale;
+	}
+
+	/** Replace the hover/tap name tag when the UI language changes. */
+	public setDisplayName(name: string) {
+		this.petName = name;
+		this.petEl.querySelector(".pet-name-tooltip")?.setText(name);
 	}
 
 	public setScale(scale: number) {

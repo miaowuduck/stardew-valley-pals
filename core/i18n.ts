@@ -96,8 +96,6 @@ const en = {
 	"settings.myPets.empty": "No pets yet! Add your first companion with the add button.",
 	"settings.addPet.name": "Add pet",
 	"settings.petType": "Type: {type}",
-	"settings.memory.count.one": "{count} memory: {memories}",
-	"settings.memory.count.other": "{count} memories: {memories}",
 
 	// ── Settings: villager visits ───────────────────────────────
 	"settings.scheduledVisits.name": "Scheduled visits",
@@ -376,8 +374,6 @@ const zh: Record<keyof typeof en, string> = {
 	"settings.myPets.empty": "还没有宠物！点击添加按钮领养第一位伙伴。",
 	"settings.addPet.name": "添加宠物",
 	"settings.petType": "类型：{type}",
-	"settings.memory.count.one": "{count} 条记忆：{memories}",
-	"settings.memory.count.other": "{count} 条记忆：{memories}",
 
 	// ── Settings: villager visits ───────────────────────────────
 	"settings.scheduledVisits.name": "定时来访",

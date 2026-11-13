@@ -6,7 +6,7 @@ import type {
 	SelectorOption,
 	UiLanguagePreference,
 } from "./core/types";
-import { NPC_TYPE_PREFIX, isNpcSpeciesType } from "./core/types";
+import { isNpcSpeciesType } from "./core/types";
 import {
 	DEFAULT_DATA,
 	DEEPSEEK_BASE_URL,
@@ -214,12 +214,6 @@ export default class PetPlugin extends Plugin {
 			this.instanceData.npcMemories = {};
 		}
 
-		// Dick's sprite sheet was byte-identical to Willy's, so the roster
-		// shipped the same fisherman twice. Fold any saved data into Willy.
-		if (this.migrateWillyAlias()) {
-			needsSave = true;
-		}
-
 		// Interface language: `auto` follows Obsidian; anything else is an
 		// explicit override. Resolve before deriving other defaults.
 		const pref = this.instanceData.uiLanguage;
@@ -256,47 +250,6 @@ export default class PetPlugin extends Plugin {
 		if (needsSave) {
 			await this.saveData(this.instanceData);
 		}
-	}
-
-	/**
-	 * Merge the retired "Dick" villager into Willy.
-	 *
-	 * Both entries used the same sprite sheet (the duplicate was visible as two
-	 * identical fishermen in the picker). Existing vaults may still hold pets,
-	 * memories, or id counters under the old type, so carry them over instead
-	 * of silently dropping them.
-	 */
-	private migrateWillyAlias(): boolean {
-		const alias = `${NPC_TYPE_PREFIX}Dick`;
-		const canonical = `${NPC_TYPE_PREFIX}Willy`;
-		let changed = false;
-
-		for (const pet of this.instanceData.pets ?? []) {
-			if (pet.type !== alias) continue;
-			pet.type = canonical;
-			pet.name = "Willy";
-			changed = true;
-		}
-
-		const memories = this.instanceData.npcMemories ?? {};
-		const legacy = memories[alias];
-		if (legacy?.length) {
-			const merged = [...(memories[canonical] ?? [])];
-			for (const memory of legacy) {
-				if (!merged.includes(memory)) merged.push(memory);
-			}
-			memories[canonical] = merged.slice(0, MAX_NPC_MEMORIES);
-			changed = true;
-		}
-		if (alias in memories) {
-			delete memories[alias];
-			changed = true;
-		}
-		if (alias in this.instanceData.nextPetIdCounters) {
-			delete this.instanceData.nextPetIdCounters[alias];
-			changed = true;
-		}
-		return changed;
 	}
 
 	/**
@@ -421,6 +374,7 @@ export default class PetPlugin extends Plugin {
 		for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_PET)) {
 			if (leaf.view instanceof PetView) leaf.view.refreshLocalizedUi();
 		}
+		this.overlayView?.refreshLocalizedUi();
 		if (!opts.silent) {
 			new Notice(t("notices.languageRestartHint"), 8000);
 		}
@@ -454,6 +408,7 @@ export default class PetPlugin extends Plugin {
 		for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_PET)) {
 			if (leaf.view instanceof PetView) leaf.view.refreshLocalizedUi();
 		}
+		this.overlayView?.refreshLocalizedUi();
 	}
 
 	// ── Activity tracking ──────────────────────────────────────
@@ -711,13 +666,8 @@ export default class PetPlugin extends Plugin {
 		await this.saveData(this.instanceData);
 	}
 
-	async clearNpcMemories(type?: string): Promise<void> {
-		if (!this.instanceData.npcMemories) this.instanceData.npcMemories = {};
-		if (type) {
-			delete this.instanceData.npcMemories[type];
-		} else {
-			this.instanceData.npcMemories = {};
-		}
+	async clearNpcMemories(): Promise<void> {
+		this.instanceData.npcMemories = {};
 		await this.saveData(this.instanceData);
 	}
 
@@ -984,7 +934,7 @@ export default class PetPlugin extends Plugin {
 			const visitor: PetInstance = { id, type: id, name: def.label };
 			this.currentVisitors.push(visitor);
 			this.addPetToViews(visitor);
-			new Notice(t("notices.villagerArrived", { name: def.label }));
+			new Notice(t("notices.villagerArrived", { name: getSpeciesLabel(id, def.label) }));
 		}
 
 		// Departures
@@ -992,7 +942,7 @@ export default class PetPlugin extends Plugin {
 			if (targetIds.includes(visitor.id)) continue;
 			this.currentVisitors = this.currentVisitors.filter((v) => v.id !== visitor.id);
 			this.removePetFromViews(visitor.id);
-			new Notice(t("notices.villagerLeft", { name: visitor.name }));
+			new Notice(t("notices.villagerLeft", { name: getSpeciesLabel(visitor.type, visitor.name) }));
 		}
 
 		// A scheduled visitor may be the first pet a mobile user ever sees.
@@ -1027,11 +977,11 @@ export default class PetPlugin extends Plugin {
 		if (isNpcSpeciesType(type)) {
 			// Villagers are unique characters with fixed names
 			if (this.instanceData.npcScheduleEnabled) {
-				new Notice(t("notices.villagerScheduleConflict", { name: def.label }));
+				new Notice(t("notices.villagerScheduleConflict", { name: getSpeciesLabel(type, def.label) }));
 				return;
 			}
 			if (this.instanceData.pets.some((p) => p.type === type)) {
-				new Notice(t("notices.villagerAlreadyInTown", { name: def.label }));
+				new Notice(t("notices.villagerAlreadyInTown", { name: getSpeciesLabel(type, def.label) }));
 				return;
 			}
 			id = type;

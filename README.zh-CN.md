@@ -143,7 +143,7 @@
 | **My pets（我的宠物）** | 查看已领养的伙伴，移除其中任意一位 |
 | **Scheduled visits / Max visitors（定时来访 / 最大访客数）** | 让村民按日常作息来访，最多同时 6 位 |
 | **NPC speech / Villager conversations（村民发言 / 村民对话）** | 开关 AI 对话和村民之间的聊天 |
-| **Core memories（核心记忆）** | 查看每位村民记住了什么，或全部清除 |
+| **Core memories（核心记忆）** | 让村民记住关于你的长期信息，或一键清除全部记忆 |
 | **Automatic rants（自动发言）** | 每小时消息数、对话频率，以及后台时是否保持安静 |
 | **AI configuration（AI 配置）** | DeepSeek 配置向导，以及高级的 secret、endpoint、模型、台词语言和连接测试 |
 

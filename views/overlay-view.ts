@@ -3,6 +3,7 @@ import type { PetInstance } from "../core/types";
 import { isNpcSpeciesType } from "../core/types";
 import { createRenderablePet } from "../pets/factory";
 import { createRantLoopScheduler, createViewRantLoopOptions } from "../ui/rant-loop";
+import { getSpeciesLabel } from "../pets/species-i18n";
 import { createBanterRunner, DROP_ONTO_RADIUS_PX } from "../ui/banter";
 import type { BanterRunner } from "../ui/banter";
 import { isMobileUi } from "../core/platform";
@@ -96,7 +97,7 @@ export class OverlayPetView {
 				singlePet.type,
 				singlePet.id,
 				this.plugin.instanceData.petSize,
-				singlePet.name,
+				getSpeciesLabel(singlePet.type, singlePet.name),
 				() => this.plugin.getPageRantText("rightclick", singlePet.type),
 				this.plugin.instanceData.petSpeed,
 				this.plugin.getSpeechEnabledProvider(),
@@ -107,6 +108,15 @@ export class OverlayPetView {
 			}
 		} catch (error) {
 			console.error(`Failed to create overlay pet ${singlePet.id}:`, error);
+		}
+	}
+
+	/** Re-render NPC name tags after a language switch. */
+	refreshLocalizedUi(): void {
+		const byId = new Map(this.plugin.getPetList().map((p) => [p.id, p]));
+		for (const { id, type, pet } of this.pets) {
+			const instance = byId.get(id);
+			pet.setDisplayName(getSpeciesLabel(type, instance?.name ?? type));
 		}
 	}
 

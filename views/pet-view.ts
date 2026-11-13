@@ -4,6 +4,7 @@ import type { PetInstance } from "../core/types";
 import { isNpcSpeciesType } from "../core/types";
 import { createRenderablePet } from "../pets/factory";
 import type { RenderablePet } from "../pets/factory";
+import { getSpeciesLabel } from "../pets/species-i18n";
 
 import { createRantLoopScheduler, createViewRantLoopOptions } from "../ui/rant-loop";
 import { createBanterRunner, DROP_ONTO_RADIUS_PX } from "../ui/banter";
@@ -128,6 +129,16 @@ export class PetView extends ItemView {
 		if (!wrapper) return;
 		wrapper.querySelector(".pet-empty-state")?.remove();
 		this.updateEmptyState(wrapper);
+		this.refreshPetNames();
+	}
+
+	/** Re-render NPC name tags after a language switch. */
+	private refreshPetNames(): void {
+		const byId = new Map(this.plugin.getPetList().map((p) => [p.id, p]));
+		for (const { id, type, pet } of this.pets) {
+			const instance = byId.get(id);
+			pet.setDisplayName(getSpeciesLabel(type, instance?.name ?? type));
+		}
 	}
 
 	updatePetSize() {
@@ -149,7 +160,7 @@ export class PetView extends ItemView {
 				singlePet.type,
 				singlePet.id,
 				this.plugin.instanceData.petSize,
-				singlePet.name,
+				getSpeciesLabel(singlePet.type, singlePet.name),
 				() => this.plugin.getPageRantText("rightclick", singlePet.type),
 				this.plugin.instanceData.petSpeed,
 				this.plugin.getSpeechEnabledProvider(),
