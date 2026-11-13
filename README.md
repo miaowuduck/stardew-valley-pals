@@ -8,16 +8,16 @@
 
 **Little neighbours for your Obsidian vault.**
 
-Adopt pixel pets, invite 41 Stardew Valley villagers into your workspace, and let them wander, work, chat — and occasionally read over your shoulder.
+Adopt pixel pets, invite 40 Stardew Valley villagers into your workspace, and let them wander, work, chat — and occasionally read over your shoulder.
 
-**41 villagers · 9 pet species · 40 colour options · panel or overlay**
+**40 villagers · 9 pet species · 40 colour options · panel or overlay**
 
 ![Pets and villagers living in Pelican Town](readmepics/hero.gif)
 
 ## Why you'll love it
 
 - 🐾 **A workspace that feels alive.** Cats, dogs, chickens, junimos and more wander, nap and ask for attention while you write.
-- 🧑‍🌾 **41 villagers, each one themselves.** Abigail plays her flute, Clint hammers at his anvil, Emily dances. Every animation is hand-picked from the original game sheets.
+- 🧑‍🌾 **40 villagers, each one themselves.** Abigail plays her flute, Clint hammers at his anvil, Emily dances. Every animation is hand-picked from the original game sheets.
 - 💬 **They notice your notes.** With an AI provider connected, right-click (or long-press) a villager for an in-character comment on whatever you're writing.
 - 🧠 **They remember you.** Villagers hold on to a few core memories — your novel, your exams, your favourite tea — and bring them up later.
 - 🪟 **Panel or overlay.** Keep everyone in a dockable side panel, or let them roam the whole Obsidian window — on desktop, tablet, and phone.
@@ -26,7 +26,7 @@ Adopt pixel pets, invite 41 Stardew Valley villagers into your workspace, and le
 
 ![Eight villagers performing their activities](readmepics/villagers.gif)
 
-All 41 characters walk, idle and react in their own style, and many have signature activities: Clint at the anvil, Abigail's flute, Emily's dancing, Sam on his skateboard, the Wizard's cauldron, Leah sculpting, Maru welding, Robin hammering — and plenty more.
+All 40 characters walk, idle and react in their own style, and many have signature activities: Clint at the anvil, Abigail's flute, Emily's dancing, Sam on his skateboard, the Wizard's cauldron, Leah sculpting, Maru welding, Robin hammering — and plenty more.
 
 Turn on **Scheduled visits** and Pelican Town comes to you. Everyone keeps their own daily routine, the roster rotates each day, and you choose how many villagers can be in town at once (1–6). Pets are unaffected.
 

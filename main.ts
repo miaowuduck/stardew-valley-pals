@@ -6,7 +6,7 @@ import type {
 	SelectorOption,
 	UiLanguagePreference,
 } from "./core/types";
-import { isNpcSpeciesType } from "./core/types";
+import { NPC_TYPE_PREFIX, isNpcSpeciesType } from "./core/types";
 import {
 	DEFAULT_DATA,
 	DEEPSEEK_BASE_URL,
@@ -214,6 +214,12 @@ export default class PetPlugin extends Plugin {
 			this.instanceData.npcMemories = {};
 		}
 
+		// Dick's sprite sheet was byte-identical to Willy's, so the roster
+		// shipped the same fisherman twice. Fold any saved data into Willy.
+		if (this.migrateWillyAlias()) {
+			needsSave = true;
+		}
+
 		// Interface language: `auto` follows Obsidian; anything else is an
 		// explicit override. Resolve before deriving other defaults.
 		const pref = this.instanceData.uiLanguage;
@@ -250,6 +256,47 @@ export default class PetPlugin extends Plugin {
 		if (needsSave) {
 			await this.saveData(this.instanceData);
 		}
+	}
+
+	/**
+	 * Merge the retired "Dick" villager into Willy.
+	 *
+	 * Both entries used the same sprite sheet (the duplicate was visible as two
+	 * identical fishermen in the picker). Existing vaults may still hold pets,
+	 * memories, or id counters under the old type, so carry them over instead
+	 * of silently dropping them.
+	 */
+	private migrateWillyAlias(): boolean {
+		const alias = `${NPC_TYPE_PREFIX}Dick`;
+		const canonical = `${NPC_TYPE_PREFIX}Willy`;
+		let changed = false;
+
+		for (const pet of this.instanceData.pets ?? []) {
+			if (pet.type !== alias) continue;
+			pet.type = canonical;
+			pet.name = "Willy";
+			changed = true;
+		}
+
+		const memories = this.instanceData.npcMemories ?? {};
+		const legacy = memories[alias];
+		if (legacy?.length) {
+			const merged = [...(memories[canonical] ?? [])];
+			for (const memory of legacy) {
+				if (!merged.includes(memory)) merged.push(memory);
+			}
+			memories[canonical] = merged.slice(0, MAX_NPC_MEMORIES);
+			changed = true;
+		}
+		if (alias in memories) {
+			delete memories[alias];
+			changed = true;
+		}
+		if (alias in this.instanceData.nextPetIdCounters) {
+			delete this.instanceData.nextPetIdCounters[alias];
+			changed = true;
+		}
+		return changed;
 	}
 
 	/**

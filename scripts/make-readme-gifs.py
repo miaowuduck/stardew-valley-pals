@@ -512,7 +512,7 @@ def make_pelican_town(w: int = 1000, h: int = 500) -> Image.Image:
         d.rectangle([fx - 2, fy, fx + 2, fy + 2], fill=col)
         d.rectangle([fx, fy - 2, fx, fy + 1], fill=col)
 
-    draw_sign(bg, 26, 24, "PELICAN TOWN", "population: 41")
+    draw_sign(bg, 26, 24, "PELICAN TOWN", "population: 40")
     return bg
 
 

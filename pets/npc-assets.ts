@@ -3,7 +3,6 @@ import alexSprite from "../assets/stardew/NPC/Alex..png";
 import carolineSprite from "../assets/stardew/NPC/Caroline..png";
 import clintSprite from "../assets/stardew/NPC/Clint..png";
 import demetriusSprite from "../assets/stardew/NPC/Demetrius..png";
-import dickSprite from "../assets/stardew/NPC/Dick..png";
 import dwarfSprite from "../assets/stardew/NPC/Dwarf..png";
 import elliottSprite from "../assets/stardew/NPC/Elliott..png";
 import emilySprite from "../assets/stardew/NPC/Emily..png";
@@ -45,7 +44,6 @@ export const stardewNpcSprites: Record<string, string> = {
 	Caroline: carolineSprite,
 	Clint: clintSprite,
 	Demetrius: demetriusSprite,
-	Dick: dickSprite,
 	Dwarf: dwarfSprite,
 	Elliott: elliottSprite,
 	Emily: emilySprite,

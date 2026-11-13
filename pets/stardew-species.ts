@@ -331,7 +331,7 @@ const npcAnimations: StardewSpeciesDefinition["animations"] = {
 // 特殊帧型（StardewAnimation 的对应字段）：
 // - span {w:2}：横向 32 宽组合帧（Clint 打铁、Elliott 钓鱼竿），人物默认在左格，
 //   在右格时设 anchorX:1；拆开单格会只剩砧板碎片/竿尖。
-// - span {h:2}：竖向 64 高组合帧（Pam 拖把、Dick/Willy 钓鱼线），人物默认在上格，
+// - span {h:2}：竖向 64 高组合帧（Pam 拖把、Willy 钓鱼线），人物默认在上格，
 //   在下格时设 anchorY:1（Clint 打铁的高帧动作）。
 // - 往返/跨行序列用显式帧列表表达（如 Alex 举重 r7c2→r7c3→r8c0→r7c3）。
 // - transitionOut: "reverse"：离开该动画时倒放一遍再切换（如下蹲后起身）。
@@ -370,12 +370,6 @@ const NPC_EXTRA_ANIMATIONS: Record<string, StardewSpeciesDefinition["animations"
 			A([[0, 5], [2, 5]], 2, { span: { w: 2, h: 1 } }),
 		],
 	}, // r10c3 单帧正面震惊(灰脸)；打铁全是 32 宽组合帧：r4 敲砧(砧板在右格, c0-1/c2-3 两帧)；r8c0→r8c2→r10c0 抡锤上举→挥下→下砸(人物均在右格, 动作帧为 48px 高, 已补回 16px 空行对齐两格)；r5 查看铁条；r6-7 为另一组组合帧(已对齐, 未启用)
-	Dick: {
-		activity: [
-			A([[0, 4], [1, 4], [2, 4], [3, 4]], 2, { span: { w: 1, h: 2 } }),
-			A([[0, 7], [1, 7], [2, 7], [3, 7]], 2),
-		],
-	}, // r4+r5 竖向组合钓鱼(人物在上格, 鱼线/浮漂垂入下格, 拆开会只剩浮漂)；r7 侧面喝水；r6 坐姿帧人工复查弃用
 	Elliott: {
 		rest: A([[2, 7]], 2),
 		activity: [
@@ -514,7 +508,7 @@ const NPC_EXTRA_ANIMATIONS: Record<string, StardewSpeciesDefinition["animations"
 			A([[0, 4], [1, 4], [2, 4], [3, 4]], 2, { span: { w: 1, h: 2 } }),
 			A([[0, 7], [1, 7], [2, 7], [3, 7]], 2),
 		],
-	}, // 图集与 Dick 逐字节一致：r4+r5 竖向组合钓鱼(人物上格, 鱼线/浮漂垂入下格)；r7 侧面喝水；r6 坐姿帧人工复查弃用
+	}, // r4+r5 竖向组合钓鱼(人物上格, 鱼线/浮漂垂入下格, 拆开会只剩浮漂)；r7 侧面喝水；r6 坐姿帧人工复查弃用
 	Wizard: {
 		activity: A([[0, 5], [1, 5], [2, 5], [1, 5]], 2),
 	}, // r5 坩埚搅拌, 回插 c1 形成平滑往返(c3 空)；r4 施法手势人工复查弃用；无阅读/坐姿行, 全部单格无需 span
@@ -563,11 +557,6 @@ const npcList: StardewSpeciesDefinition[] = [
 		identity: "Robin husband; the valley's scientist, studies the local ecosystem",
 		temperament: "Analytical, well-meaning, terrible at reading the room",
 		rantStyle: "Precise and clinical, turns everything into an observation or a hypothesis. Example: 'Fascinating. This warrants further study.'",
-	}),
-	N("Dick", [6, 17], {
-		identity: "A young angler who practically lives on the docks",
-		temperament: "Easygoing, sun-baked, always halfway into a fishing story",
-		rantStyle: "Laid-back dock talk, everything comes back to the one that got away. Example: 'You should've seen the size of it. Swear on my tackle box.'",
 	}),
 	{ ...N("Dwarf", [10, 18], {
 		identity: "A small being from the mines; speaks Dwarvish, wary of humans",
